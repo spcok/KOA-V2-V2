@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { db } from '../../lib/db';
-import { Heart, AlertCircle, Plus, Calendar, Scale, Drumstick, ArrowUpDown, Loader2, ClipboardCheck, CheckCircle, ChevronUp, ChevronDown, ChevronRight, Lock, Unlock } from 'lucide-react';
+import { AnimalTable } from './components/AnimalTable';
+import { Heart, AlertCircle, Plus, Calendar, Scale, Drumstick, ArrowUpDown, Loader2, ClipboardCheck, CheckCircle, Lock, Unlock, ChevronUp, ChevronDown } from 'lucide-react';
 
 export function Dashboard() {
   const getLocalToday = () => {
@@ -15,14 +16,12 @@ export function Dashboard() {
   const [activeTab, setActiveTab] = useState('Owls');
   const [viewDate, setViewDate] = useState(getLocalToday());
   const [isBentoMinimized, setIsBentoMinimized] = useState(false);
-  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
   const [sortOption, setSortOption] = useState<'alpha-asc' | 'alpha-desc'>('alpha-asc');
   const [isOrderLocked, setIsOrderLocked] = useState(false);
 
   const permissions = { view_animals: true, add_animals: true, isAdmin: true, isOwner: true };
 
   const cycleSort = () => setSortOption(prev => prev === 'alpha-asc' ? 'alpha-desc' : 'alpha-asc');
-  const toggleGroup = (groupName: string) => setExpandedGroups(prev => ({ ...prev, [groupName]: !prev[groupName] }));
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['dashboardData', viewDate],
@@ -51,36 +50,6 @@ export function Dashboard() {
     } catch {
       return String(val).substring(0, 10);
     }
-  };
-
-  const getWeightDisplay = (log: any) => {
-      if (!log) return '-';
-      const wg = Number(log.weight_grams);
-      if (!isNaN(wg) && wg !== -1 && wg !== 0) return `${wg}g`;
-      if (log.value && log.value !== 'N/A' && log.value !== 'NONE') return String(log.value);
-      return '-';
-  };
-
-  const renderFeedLogs = (logs: any[]) => {
-      if (!logs || logs.length === 0) return '-';
-      return (
-        <div className="flex flex-col gap-1.5">
-          {logs.map((log: any) => {
-            const qty = log.quantity && log.quantity !== -1 ? log.quantity + 'x ' : '';
-            const food = log.food && log.food !== 'N/A' ? log.food : '';
-            const text = `${qty}${food}`.trim() || log.value || 'Fed';
-            const time = log.feed_time && log.feed_time !== '00:00:00' 
-              ? log.feed_time.substring(0, 5) 
-              : new Date(log.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-            
-            return (
-              <span key={log.id} className="block whitespace-normal break-words leading-tight text-slate-700 font-medium">
-                {text} <span className="text-[10px] text-slate-500 font-bold whitespace-nowrap">@ {time}</span>
-              </span>
-            );
-          })}
-        </div>
-      );
   };
 
   // 1. Process & Map Animals
@@ -124,8 +93,6 @@ export function Dashboard() {
       weighed: filteredAnimals.filter(a => a.todayWeight).length,
       fed: filteredAnimals.filter(a => a.todayFeedLogs.length > 0).length
   };
-
-  const taskStats = { pendingTasks: [], pendingHealth: [] };
 
   if (isLoading) {
     return (
@@ -275,128 +242,7 @@ export function Dashboard() {
 
       {/* Table */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="w-full overflow-x-auto overflow-y-hidden">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-white border-b border-slate-200 text-slate-600 font-medium">
-              <tr>
-                <th className="px-1 py-2 md:px-2 md:py-3 lg:px-4 lg:py-4 text-[11px] md:text-xs min-w-[90px]">Name</th>
-                <th className="px-1 py-2 md:px-2 md:py-3 lg:px-4 lg:py-4 text-[11px] md:text-xs hidden xl:table-cell">Species</th>
-                <th className="px-1 py-2 md:px-2 md:py-3 lg:px-4 lg:py-4 text-[11px] md:text-xs hidden 2xl:table-cell">ID</th>
-                {activeTab === 'ARCHIVED' ? (
-                    <>
-                        <th className="px-1 py-2 md:px-2 md:py-3 lg:px-4 lg:py-4 text-[11px] md:text-xs">Status</th>
-                        <th className="px-1 py-2 md:px-2 md:py-3 lg:px-4 lg:py-4 text-[11px] md:text-xs">Reason</th>
-                    </>
-                ) : (
-                    <>
-                        <th className={`px-1 py-2 md:px-2 md:py-3 lg:px-4 lg:py-4 text-[11px] md:text-xs ${activeTab === 'Exotics' ? 'hidden' : ''}`}>Today's Weight</th>
-                        <th className="px-1 py-2 md:px-2 md:py-3 lg:px-4 lg:py-4 text-[11px] md:text-xs min-w-[140px]">Today's Feed</th>
-                        <th className={`px-1 py-2 md:px-2 md:py-3 lg:px-4 lg:py-4 text-[11px] md:text-xs ${activeTab === 'Exotics' ? 'hidden' : 'hidden md:table-cell'}`}>Last Fed</th>
-                        <th className="px-1 py-2 md:px-2 md:py-3 lg:px-4 lg:py-4 text-[11px] md:text-xs hidden md:table-cell">Location</th>
-                    </>
-                )}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {(() => {
-                const grouped = new Map<string, any[]>();
-                const standalone: any[] = [];
-                
-                filteredAnimals.forEach((animal: any) => {
-                  const pid = animal.parent_mob_id;
-                  const isFakeParent = !pid || pid === '00000000-0000-0000-0000-000000000000';
-                  
-                  if (!isFakeParent) {
-                    if (!grouped.has(pid)) grouped.set(pid, []);
-                    grouped.get(pid)!.push(animal);
-                  } else {
-                    standalone.push(animal);
-                  }
-                });
-
-                const rows: React.ReactNode[] = [];
-
-                Array.from(grouped.entries()).forEach(([parentMobId, animals]: [string, any[]]) => {
-                  const isExpanded = expandedGroups[parentMobId];
-                  const parentMob = data?.animals?.find((a: any) => String(a.id) === String(parentMobId));
-                  const displayName = parentMob ? parentMob.name : 'Unknown Mob';
-                  
-                  rows.push(
-                    <tr key={`group-${parentMobId}`} className="bg-slate-100/50 border-y border-slate-200 cursor-pointer hover:bg-slate-100 transition-colors" onClick={() => toggleGroup(parentMobId)}>
-                      <td colSpan={8} className="px-2 py-3 lg:px-4 lg:py-4">
-                        <div className="flex items-center gap-2">
-                          {isExpanded ? <ChevronDown size={16} className="text-slate-500" /> : <ChevronRight size={16} className="text-slate-500" />}
-                          <span className="font-bold text-slate-800">{displayName}</span>
-                          <span className="text-xs font-medium text-slate-500 bg-slate-200 px-2 py-0.5 rounded-full">{animals.length} individuals</span>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-
-                  if (isExpanded) {
-                    animals.forEach((animal: any) => {
-                      rows.push(
-                        <tr key={animal.id} className="hover:bg-slate-50 bg-slate-50/30">
-                          <td className="px-1 py-2 md:px-2 md:py-3 lg:px-4 lg:py-4 text-sm font-bold text-slate-900 pl-4 md:pl-8">
-                            <span className="text-slate-300 mr-2">↳</span>{animal.name}
-                          </td>
-                          <td className="px-1 py-2 md:px-2 md:py-3 lg:px-4 lg:py-4 text-xs text-slate-500 hidden xl:table-cell">{animal.species}</td>
-                          <td className="px-1 py-2 md:px-2 md:py-3 lg:px-4 lg:py-4 text-xs text-slate-400 hidden 2xl:table-cell">{animal.displayId}</td>
-                          {activeTab === 'ARCHIVED' ? (
-                              <>
-                                  <td className="px-1 py-2 md:px-2 md:py-3 lg:px-4 lg:py-4 text-xs text-slate-600">Archived</td>
-                                  <td className="px-1 py-2 md:px-2 md:py-3 lg:px-4 lg:py-4 text-xs text-slate-600">{animal.archive_reason || '-'}</td>
-                              </>
-                          ) : (
-                              <>
-                                  <td className={`px-1 py-2 md:px-2 md:py-3 lg:px-4 lg:py-4 text-xs text-slate-700 font-medium ${activeTab === 'Exotics' ? 'hidden' : ''}`}>
-                                    {getWeightDisplay(animal.todayWeight)}
-                                  </td>
-                                  <td className="px-1 py-2 md:px-2 md:py-3 lg:px-4 lg:py-4 text-xs text-slate-400">
-                                    {renderFeedLogs(animal.todayFeedLogs)}
-                                  </td>
-                                  <td className={`px-1 py-2 md:px-2 md:py-3 lg:px-4 lg:py-4 text-xs text-slate-400 ${activeTab === 'Exotics' ? 'hidden' : 'hidden md:table-cell'}`}>{animal.lastFedStr}</td>
-                                  <td className="px-1 py-2 md:px-2 md:py-3 lg:px-4 lg:py-4 text-xs text-emerald-500 hidden md:table-cell">{animal.location || 'Unknown'}</td>
-                              </>
-                          )}
-                        </tr>
-                      );
-                    });
-                  }
-                });
-
-                standalone.filter((a: any) => !grouped.has(a.id)).forEach((animal: any) => {
-                  rows.push(
-                    <tr key={animal.id} className="hover:bg-slate-50">
-                      <td className="px-1 py-2 md:px-2 md:py-3 lg:px-4 lg:py-4 text-sm font-bold text-slate-900">{animal.name}</td>
-                      <td className="px-1 py-2 md:px-2 md:py-3 lg:px-4 lg:py-4 text-xs text-slate-500 hidden xl:table-cell">{animal.species}</td>
-                      <td className="px-1 py-2 md:px-2 md:py-3 lg:px-4 lg:py-4 text-xs text-slate-400 hidden 2xl:table-cell">{animal.displayId}</td>
-                      {activeTab === 'ARCHIVED' ? (
-                          <>
-                              <td className="px-1 py-2 md:px-2 md:py-3 lg:px-4 lg:py-4 text-xs text-slate-600">Archived</td>
-                              <td className="px-1 py-2 md:px-2 md:py-3 lg:px-4 lg:py-4 text-xs text-slate-600">{animal.archive_reason || '-'}</td>
-                          </>
-                      ) : (
-                          <>
-                              <td className={`px-1 py-2 md:px-2 md:py-3 lg:px-4 lg:py-4 text-xs text-slate-700 font-medium ${activeTab === 'Exotics' ? 'hidden' : ''}`}>
-                                {getWeightDisplay(animal.todayWeight)}
-                              </td>
-                              <td className="px-1 py-2 md:px-2 md:py-3 lg:px-4 lg:py-4 text-xs text-slate-400">
-                                {renderFeedLogs(animal.todayFeedLogs)}
-                              </td>
-                              <td className={`px-1 py-2 md:px-2 md:py-3 lg:px-4 lg:py-4 text-xs text-slate-400 ${activeTab === 'Exotics' ? 'hidden' : 'hidden md:table-cell'}`}>{animal.lastFedStr}</td>
-                              <td className="px-1 py-2 md:px-2 md:py-3 lg:px-4 lg:py-4 text-xs text-emerald-500 hidden md:table-cell">{animal.location || 'Unknown'}</td>
-                          </>
-                      )}
-                    </tr>
-                  );
-                });
-
-                return rows;
-              })()}
-            </tbody>
-          </table>
-        </div>
+        <AnimalTable animals={filteredAnimals} activeTab={activeTab} />
       </div>
     </div>
   );

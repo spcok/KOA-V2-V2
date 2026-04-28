@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { supabase } from '../lib/supabase';
 import { db } from '../lib/db';
+import { queryClient } from '../lib/queryClient';
 
 interface SyncState {
   isSyncing: boolean;
@@ -139,6 +140,7 @@ export const useSyncStore = create<SyncState>((set, get) => ({
           await db.query(query, values);
           window.dispatchEvent(new Event('db-updated'));
         }
+        queryClient.invalidateQueries();
       })
       .subscribe();
   }

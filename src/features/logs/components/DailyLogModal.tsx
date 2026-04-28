@@ -3,6 +3,7 @@ import { useForm } from '@tanstack/react-form';
 import { zodValidator } from '@tanstack/zod-form-adapter';
 import { z } from 'zod';
 import { db } from '../../../lib/db';
+import { queryClient } from '../../../lib/queryClient';
 import { useSyncStore } from '../../../store/syncStore';
 import { X, Trash2 } from 'lucide-react';
 import { convertToGrams, convertFromGrams } from '../../../lib/weightUtils';
@@ -162,6 +163,7 @@ function DailyLogForm({ isOpen, onClose, animalId, existingLogId, initialData, a
         }
         console.log('3. SUCCESS: DB Query Executed');
         // Trigger background sync
+        await queryClient.invalidateQueries();
         useSyncStore.getState().pushToCloud().catch(console.error);
         
         onClose();
@@ -178,7 +180,7 @@ function DailyLogForm({ isOpen, onClose, animalId, existingLogId, initialData, a
     if (!existingLogId) return;
     if (window.confirm('Are you sure you want to delete this log?')) {
       await db.query('UPDATE daily_logs SET is_deleted = true, updated_at = NOW() WHERE id = $1', [existingLogId]);
-      window.dispatchEvent(new Event('db-updated'));
+      await queryClient.invalidateQueries();
       useSyncStore.getState().pushToCloud().catch(console.error);
       onClose();
     }
