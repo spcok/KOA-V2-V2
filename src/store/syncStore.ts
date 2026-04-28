@@ -27,6 +27,25 @@ export const useSyncStore = create<SyncState>((set, get) => ({
   pullFromCloud: async () => {
     set({ isSyncing: true });
     try {
+      // Pull Users
+      const { data: usersData, error: usersError } = await supabase.from('users').select('*');
+      if (usersError) throw usersError;
+
+      if (usersData && usersData.length > 0) {
+        await db.transaction(async (tx) => {
+          for (const record of usersData) {
+            await tx.query(
+              `INSERT INTO users (id, email, name, initials, role, is_deleted, created_at, updated_at) 
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+               ON CONFLICT (id) DO UPDATE SET 
+               email = EXCLUDED.email, name = EXCLUDED.name, initials = EXCLUDED.initials, 
+               role = EXCLUDED.role, is_deleted = EXCLUDED.is_deleted, updated_at = EXCLUDED.updated_at`,
+              [record.id, record.email, record.name, record.initials, record.role, record.is_deleted, record.created_at, record.updated_at]
+            );
+          }
+        });
+      }
+
       // Pull Animals
       const { data: animalsData, error: animalsError } = await supabase.from('animals').select('*');
       if (animalsError) throw animalsError;

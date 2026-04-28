@@ -105,6 +105,17 @@ CREATE TABLE IF NOT EXISTS feeding_schedules (
   created_at timestamp with time zone NOT NULL DEFAULT now(),
   updated_at timestamp with time zone NOT NULL DEFAULT now()
 );
+
+CREATE TABLE IF NOT EXISTS users (
+  id uuid PRIMARY KEY,
+  email text NOT NULL,
+  name text,
+  initials text,
+  role text,
+  is_deleted boolean NOT NULL DEFAULT false,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now()
+);
   `);
   
   try {
