@@ -175,7 +175,8 @@ function DailyLogForm({ isOpen, onClose, animalId, existingLogId, initialData, a
   });
 
   const handleDelete = async () => {
-    if (existingLogId) {
+    if (!existingLogId) return;
+    if (window.confirm('Are you sure you want to delete this log?')) {
       await db.query('UPDATE daily_logs SET is_deleted = true, updated_at = NOW() WHERE id = $1', [existingLogId]);
       window.dispatchEvent(new Event('db-updated'));
       useSyncStore.getState().pushToCloud().catch(console.error);
