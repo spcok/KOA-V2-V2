@@ -1,0 +1,6 @@
+{
+  "name": "KOA Manager V2",
+  "description": "Clean Room build of KOA Manager with PGLite local-first architecture and Supabase sync.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
