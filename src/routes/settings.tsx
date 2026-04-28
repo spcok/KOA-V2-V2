@@ -1,8 +1,11 @@
-import { createFileRoute } from '@tanstack/react-router';
-import { User, Settings as SettingsIcon } from 'lucide-react';
+import { createRoute } from '@tanstack/react-router';
+import { User } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
+import { Route as rootRoute } from './__root';
 
-export const Route = createFileRoute('/settings')({
+export const Route = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/settings',
   component: SettingsView,
 });
 

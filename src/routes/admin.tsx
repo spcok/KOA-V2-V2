@@ -1,8 +1,11 @@
-import { createFileRoute } from '@tanstack/react-router';
+import { createRoute } from '@tanstack/react-router';
 import { ShieldAlert, Database } from 'lucide-react';
 import { DatabaseHarness } from '../features/admin/components/DatabaseHarness';
+import { Route as rootRoute } from './__root';
 
-export const Route = createFileRoute('/admin')({
+export const Route = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/admin',
   component: AdminView,
 });
 
