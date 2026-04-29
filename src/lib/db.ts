@@ -202,7 +202,29 @@ export const initDb = async () => {
   }
 
   // ==========================================
-  // FUTURE MIGRATIONS GO HERE (e.g., if currentVersion < 4)
+  // MIGRATION V4: Users Table & Strict Mode Safety
+  // ==========================================
+  if (currentVersion < 4) {
+    console.log('[DB Boot] Executing Migration V4: Users Table Initialization...');
+    await db.exec(`
+      CREATE TABLE IF NOT EXISTS users (
+        id uuid PRIMARY KEY,
+        email text NOT NULL,
+        name text,
+        initials text,
+        role text,
+        is_deleted boolean NOT NULL DEFAULT false,
+        created_at timestamp with time zone NOT NULL DEFAULT now(),
+        updated_at timestamp with time zone NOT NULL DEFAULT now()
+      );
+    `);
+    // Protected against concurrent React Strict Mode boots
+    await db.query('INSERT INTO schema_migrations (version) VALUES (4) ON CONFLICT (version) DO NOTHING');
+    console.log('[DB Boot] Migration V4 Complete.');
+  }
+
+  // ==========================================
+  // FUTURE MIGRATIONS GO HERE (e.g., if currentVersion < 5)
   // ==========================================
 
 };

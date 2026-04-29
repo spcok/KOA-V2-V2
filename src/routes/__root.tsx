@@ -83,7 +83,7 @@ function RootComponent() {
               <ActiveLink to="/daily-logs" label="Daily Logs" icon={Icons.logs} />
               <ActiveLink to="/daily-rounds" label="Daily Rounds" icon={Icons.logs} />
               <InactiveItem label="Tasks" icon={Icons.logs} />
-              <InactiveItem label="Feeding Schedule" icon={Icons.logs} />
+              <ActiveLink to="/feeding-schedules" label="Feeding Schedule" icon={Icons.logs} />
             </div>
           </div>
 
