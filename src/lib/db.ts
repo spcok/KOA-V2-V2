@@ -224,6 +224,16 @@ export const initDb = async () => {
   }
 
   // ==========================================
+  // MIGRATION V5: Sign Generator Cache Column
+  // ==========================================
+  if (currentVersion < 5) {
+    console.log('[DB Boot] Executing Migration V5: Sign Content Column...');
+    await db.exec(`ALTER TABLE animals ADD COLUMN IF NOT EXISTS sign_content text;`);
+    await db.query('INSERT INTO schema_migrations (version) VALUES (5) ON CONFLICT (version) DO NOTHING');
+    console.log('[DB Boot] Migration V5 Complete.');
+  }
+
+  // ==========================================
   // FUTURE MIGRATIONS GO HERE (e.g., if currentVersion < 5)
   // ==========================================
 

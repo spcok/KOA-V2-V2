@@ -153,8 +153,8 @@ export function FeedingScheduleView() {
     mutationFn: async (id: string) => {
       await db.query(`UPDATE feeding_schedules SET is_deleted = true, updated_at = now(), modified_by = $1 WHERE id = $2`, [currentUserId, id]);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['feeding_schedules'] });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['feeding_schedules'] });
       useSyncStore.getState().pushToCloud().catch(console.error);
     }
   });
