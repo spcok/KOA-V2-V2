@@ -7,7 +7,6 @@ import { useSyncStore } from '../../../store/syncStore';
 import { useAuthStore } from '../../../store/authStore';
 import { X, Save, Loader2, Image as ImageIcon, Map as MapIcon, Check, ZoomIn } from 'lucide-react';
 
-// --- INLINE VISUAL CROPPER COMPONENT ---
 function ImageCropper({ src, aspect, onCrop, onCancel }: { src: string, aspect: number, onCrop: (b64: string) => void, onCancel: () => void }) {
   const [zoom, setZoom] = useState(1);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
@@ -98,7 +97,6 @@ function ImageCropper({ src, aspect, onCrop, onCancel }: { src: string, aspect: 
   );
 }
 
-// --- TANSTACK FORM HELPER COMPONENT ---
 function FormField({ form, name, label, type = 'text', options, className = "", placeholder = "" }: any) {
   return (
     <form.Field name={name}>
@@ -138,7 +136,6 @@ export function AddAnimalModal({ isOpen, onClose, existingAnimalId }: { isOpen: 
   const [isFetching, setIsFetching] = useState(false);
   const [activeSection, setActiveSection] = useState<'core' | 'id' | 'env' | 'health' | 'admin'>('core');
   
-  // Cropper State
   const [cropFileSrc, setCropFileSrc] = useState<string | null>(null);
   const [cropTarget, setCropTarget] = useState<'image_url' | 'distribution_map_url' | null>(null);
   const [mapAspect, setMapAspect] = useState<number>(16/9);
@@ -149,39 +146,62 @@ export function AddAnimalModal({ isOpen, onClose, existingAnimalId }: { isOpen: 
     defaultValues: DEFAULT_VALUES,
     onSubmit: async ({ value }) => {
       const payload: any = { ...value };
+      const ZERO_UUID = '00000000-0000-0000-0000-000000000000';
       
-      // UUID Sanitizer
+      // STRICT SCHEMA ENFORCEMENT
+      // 1. UUIDs -> Must fallback to ZERO_UUID, not null
       ['parent_mob_id', 'sire_id', 'dam_id'].forEach(k => {
-        if (!payload[k] || payload[k].trim() === '' || payload[k] === 'unknown' || payload[k] === '00000000-0000-0000-0000-000000000000') payload[k] = null;
+        if (!payload[k] || payload[k].trim() === '' || payload[k] === 'unknown') payload[k] = ZERO_UUID;
       });
 
-      // Numeric Sanitizer
-      ['census_count', 'flying_weight_g', 'winter_weight_g', 'average_target_weight', 'target_day_temp_c', 'target_night_temp_c', 'water_tipping_temp', 'target_humidity_min_percent', 'target_humidity_max_percent', 'display_order'].forEach(k => {
-        if (payload[k] === '' || payload[k] === null || payload[k] === undefined) payload[k] = null;
+      // 2. Numerics -> Must fallback to -1, not null
+      ['flying_weight_g', 'winter_weight_g', 'average_target_weight', 'target_day_temp_c', 'target_night_temp_c', 'water_tipping_temp', 'target_humidity_min_percent', 'target_humidity_max_percent'].forEach(k => {
+        if (payload[k] === '' || payload[k] === null || payload[k] === undefined) payload[k] = -1;
         else payload[k] = Number(payload[k]);
       });
+      payload.census_count = Number(payload.census_count) || 1;
+      payload.display_order = Number(payload.display_order) || 0;
 
-      // Date Sanitizer
+      // 3. Strings -> Must fallback to 'unknown'
+      ['name', 'species', 'latin_name', 'category', 'location', 'hazard_rating', 'gender', 'microchip_id', 'ring_number', 'red_list_status', 'acquisition_type', 'origin', 'origin_location'].forEach(k => {
+        if (!payload[k] || String(payload[k]).trim() === '') payload[k] = 'unknown';
+      });
+      
+      if (!payload.image_url || payload.image_url === '') payload.image_url = '-1';
+      if (!payload.distribution_map_url || payload.distribution_map_url === '') payload.distribution_map_url = null; // Schema allows null here
+      if (!payload.misting_frequency || payload.misting_frequency.trim() === '') payload.misting_frequency = null; // Schema allows null here
+
+      // 4. Arrays -> Must fallback to ['none']
+      ['description', 'special_requirements', 'critical_husbandry_notes'].forEach(k => {
+        if (!payload[k] || payload[k].trim() === '') payload[k] = ['none'];
+        else if (typeof payload[k] === 'string') payload[k] = payload[k].split(/\n|\\n/).map((s: string) => s.trim()).filter((s: string) => s !== '');
+      });
+
+      // 5. Dates -> Must fallback to '1900-01-01'
       if (!payload.date_of_birth) payload.date_of_birth = '1900-01-01';
       if (!payload.acquisition_date) payload.acquisition_date = '1900-01-01';
 
       const uId = currentUserId || null;
 
-      if (existingAnimalId) {
-        const cols = Object.keys(payload);
-        const setClause = cols.map((c, i) => `${c} = $${i + 1}`).join(', ');
-        const values = cols.map(c => payload[c]);
-        await db.query(`UPDATE animals SET ${setClause}, updated_at = now(), modified_by = $${cols.length + 1} WHERE id = $${cols.length + 2}`, [...values, uId, existingAnimalId]);
-      } else {
-        const cols = Object.keys(payload);
-        const placeholders = cols.map((_, i) => `$${i + 1}`).join(', ');
-        const values = cols.map(c => payload[c]);
-        await db.query(`INSERT INTO animals (${cols.join(', ')}, created_by, modified_by) VALUES (${placeholders}, $${cols.length + 1}, $${cols.length + 1})`, [...values, uId]);
+      try {
+          if (existingAnimalId) {
+            const cols = Object.keys(payload);
+            const setClause = cols.map((c, i) => `${c} = $${i + 1}`).join(', ');
+            const values = cols.map(c => payload[c]);
+            await db.query(`UPDATE animals SET ${setClause}, updated_at = now(), modified_by = $${cols.length + 1} WHERE id = $${cols.length + 2}`, [...values, uId, existingAnimalId]);
+          } else {
+            const cols = Object.keys(payload);
+            const placeholders = cols.map((_, i) => `$${i + 1}`).join(', ');
+            const values = cols.map(c => payload[c]);
+            await db.query(`INSERT INTO animals (${cols.join(', ')}, created_by, modified_by) VALUES (${placeholders}, $${cols.length + 1}, $${cols.length + 1})`, [...values, uId]);
+          }
+          queryClient.invalidateQueries();
+          useSyncStore.getState().pushToCloud().catch(console.error);
+          onClose();
+      } catch (err: any) {
+          console.error(err);
+          alert(`Save Failed: ${err.message}`);
       }
-      
-      queryClient.invalidateQueries();
-      useSyncStore.getState().pushToCloud().catch(console.error);
-      onClose();
     }
   });
 
@@ -196,24 +216,40 @@ export function AddAnimalModal({ isOpen, onClose, existingAnimalId }: { isOpen: 
                 if (r[k] !== undefined && r[k] !== null) loadData[k as keyof typeof DEFAULT_VALUES] = r[k];
             });
             
-            // Format specific dates & UUIDs back to UI friendly
+            // Revert strict defaults to UI-friendly blank states
             if (loadData.date_of_birth === '1900-01-01T00:00:00.000Z' || loadData.date_of_birth === '1900-01-01') loadData.date_of_birth = '';
             else loadData.date_of_birth = new Date(loadData.date_of_birth).toISOString().split('T')[0];
             
             if (loadData.acquisition_date === '1900-01-01T00:00:00.000Z' || loadData.acquisition_date === '1900-01-01') loadData.acquisition_date = '';
             else loadData.acquisition_date = new Date(loadData.acquisition_date).toISOString().split('T')[0];
             
-            if (loadData.parent_mob_id === '00000000-0000-0000-0000-000000000000') loadData.parent_mob_id = '';
-            if (loadData.sire_id === '00000000-0000-0000-0000-000000000000') loadData.sire_id = '';
-            if (loadData.dam_id === '00000000-0000-0000-0000-000000000000') loadData.dam_id = '';
+            ['parent_mob_id', 'sire_id', 'dam_id'].forEach(k => {
+               if (loadData[k as keyof typeof DEFAULT_VALUES] === '00000000-0000-0000-0000-000000000000') loadData[k as keyof typeof DEFAULT_VALUES] = '' as never;
+            });
+
+            ['flying_weight_g', 'winter_weight_g', 'average_target_weight', 'target_day_temp_c', 'target_night_temp_c', 'water_tipping_temp', 'target_humidity_min_percent', 'target_humidity_max_percent'].forEach(k => {
+               if (loadData[k as keyof typeof DEFAULT_VALUES] === -1) loadData[k as keyof typeof DEFAULT_VALUES] = '' as never;
+            });
+
+            ['name', 'species', 'latin_name', 'category', 'location', 'hazard_rating', 'gender', 'microchip_id', 'ring_number', 'red_list_status', 'acquisition_type', 'origin', 'origin_location'].forEach(k => {
+               if (loadData[k as keyof typeof DEFAULT_VALUES] === 'unknown') loadData[k as keyof typeof DEFAULT_VALUES] = '' as never;
+            });
+
+            if (loadData.image_url === '-1') loadData.image_url = '';
+
+            ['description', 'special_requirements', 'critical_husbandry_notes'].forEach(k => {
+                const val = loadData[k as keyof typeof DEFAULT_VALUES];
+                if (Array.isArray(val)) {
+                    if (val.length === 1 && val[0] === 'none') loadData[k as keyof typeof DEFAULT_VALUES] = '';
+                    else loadData[k as keyof typeof DEFAULT_VALUES] = val.join('\n') as never;
+                }
+            });
 
             form.update({ defaultValues: loadData });
             form.reset();
         }
         setIsFetching(false);
       });
-    } else if (isOpen) {
-       form.reset();
     }
   }, [existingAnimalId, isOpen, form]);
 
@@ -227,7 +263,7 @@ export function AddAnimalModal({ isOpen, onClose, existingAnimalId }: { isOpen: 
       };
       reader.readAsDataURL(file);
     }
-    e.target.value = ''; // Reset input so same file can be clicked again
+    e.target.value = ''; 
   };
 
   if (!isOpen) return null;
@@ -271,27 +307,25 @@ export function AddAnimalModal({ isOpen, onClose, existingAnimalId }: { isOpen: 
           ) : (
             <div className="p-6 overflow-y-auto flex-1 bg-white custom-scrollbar">
               
-              {/* CORE DETAILS */}
               <div className={activeSection === 'core' ? 'space-y-6' : 'hidden'}>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
                       <div className="lg:col-span-3"><FormField form={form} name="name" label="Animal Name / Mob Name *" className="bg-slate-50 font-bold text-slate-800 p-3" /></div>
                       <FormField form={form} name="species" label="Common Species" />
                       <FormField form={form} name="latin_name" label="Latin Name" className="italic text-slate-600" />
                       <FormField form={form} name="category" label="Taxonomy Category" type="select" options={['Mammal', 'Bird', 'Reptile', 'Amphibian', 'Invertebrate', 'Fish', 'Raptor', 'Owl', 'Exotic', 'Other']} />
-                      <FormField form={form} name="gender" label="Sex" type="select" options={['Unknown', 'Male', 'Female']} />
+                      <FormField form={form} name="gender" label="Gender" type="select" options={['Unknown', 'Male', 'Female']} />
                       <FormField form={form} name="date_of_birth" label="Date of Birth" type="date" />
                       <div className="pt-6"><FormField form={form} name="is_dob_unknown" label="DOB is an Estimate" type="checkbox" className="text-emerald-500" /></div>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-4">
                       <div className="col-span-1 md:col-span-2"><FormField form={form} name="description" label="General Description" type="textarea" className="h-24" /></div>
                       <FormField form={form} name="origin" label="Origin Entity (e.g., Zoo Name)" />
-                      <FormField form={form} name="origin_location" label="Origin City/Country" />
+                      <FormField form={form} name="origin_location" label="Origin Location (City/Country)" />
                       <FormField form={form} name="acquisition_date" label="Acquisition Date" type="date" />
                       <FormField form={form} name="acquisition_type" label="Acquisition Type" type="select" options={[{value:'DONATION', label:'Donation'}, {value:'PURCHASE', label:'Purchase'}, {value:'BREEDING', label:'Internal Breeding'}, {value:'RESCUE', label:'Rescue/Confiscation'}, {value:'LOAN', label:'Loan'}, {value:'unknown', label:'Unknown'}]} />
                   </div>
               </div>
 
-              {/* IDENTIFICATION & MEDIA */}
               <div className={activeSection === 'id' ? 'space-y-6' : 'hidden'}>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50 p-6 rounded-2xl border border-slate-200">
                       <div>
@@ -330,7 +364,7 @@ export function AddAnimalModal({ isOpen, onClose, existingAnimalId }: { isOpen: 
                       <FormField form={form} name="location" label="Current Location (Enclosure)" className="font-bold uppercase tracking-widest" />
                       <FormField form={form} name="microchip_id" label="Microchip ID" className="font-mono text-sm" />
                       <FormField form={form} name="ring_number" label="Ring Number" className="font-mono text-sm" />
-                      <div className="pt-6"><FormField form={form} name="has_no_id" label="No ID Elements" type="checkbox" className="text-emerald-500" /></div>
+                      <div className="pt-6"><FormField form={form} name="has_no_id" label="No ID Elements (Too Small/Wild)" type="checkbox" className="text-emerald-500" /></div>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 border-t border-slate-100 pt-6">
                       <div className="col-span-3"><h3 className="text-xs font-black text-slate-800 uppercase tracking-widest">Herd / Mob Management</h3></div>
@@ -345,7 +379,6 @@ export function AddAnimalModal({ isOpen, onClose, existingAnimalId }: { isOpen: 
                   </div>
               </div>
 
-              {/* ENVIRONMENT */}
               <div className={activeSection === 'env' ? 'space-y-6' : 'hidden'}>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
                       <div className="col-span-3"><h3 className="text-xs font-black text-slate-800 uppercase tracking-widest">Weight Data</h3></div>
@@ -354,29 +387,28 @@ export function AddAnimalModal({ isOpen, onClose, existingAnimalId }: { isOpen: 
                       <FormField form={form} name="winter_weight_g" label="Winter Target Weight" type="number" />
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 border-t border-slate-100 pt-6">
-                      <div className="col-span-full"><h3 className="text-xs font-black text-slate-800 uppercase tracking-widest flex items-center justify-between">Climate Parameters <div className="mt-1"><FormField form={form} name="ambient_temp_only" label="Ambient Temp Only" type="checkbox" /></div></h3></div>
+                      <div className="col-span-full"><h3 className="text-xs font-black text-slate-800 uppercase tracking-widest flex items-center justify-between">Climate Parameters <div className="mt-2"><FormField form={form} name="ambient_temp_only" label="Ambient Temp Only" type="checkbox" /></div></h3></div>
                       <FormField form={form} name="target_day_temp_c" label="Day Temp (°C)" type="number" />
                       <FormField form={form} name="target_night_temp_c" label="Night Temp (°C)" type="number" />
                       <FormField form={form} name="target_humidity_min_percent" label="Min Humidity (%)" type="number" />
                       <FormField form={form} name="target_humidity_max_percent" label="Max Humidity (%)" type="number" />
                       <FormField form={form} name="water_tipping_temp" label="Water Tipping (°C)" type="number" />
-                      <div className="col-span-full"><FormField form={form} name="misting_frequency" label="Misting Frequency" placeholder="e.g. Twice Daily" /></div>
+                      <div className="col-span-full"><FormField form={form} name="misting_frequency" label="Misting Frequency (Text)" placeholder="e.g. Twice Daily" /></div>
                   </div>
               </div>
 
-              {/* HEALTH & SAFETY */}
               <div className={activeSection === 'health' ? 'space-y-6' : 'hidden'}>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 bg-red-50 p-6 rounded-2xl border border-red-200">
                       <FormField form={form} name="hazard_rating" label="Hazard Rating" type="select" options={['LOW', 'MEDIUM', 'HIGH']} className="text-red-900 font-bold" />
-                      <div className="pt-6"><FormField form={form} name="is_venomous" label="Venomous" type="checkbox" className="text-red-600" /></div>
+                      <div className="pt-6"><FormField form={form} name="is_venomous" label="Venomous Species" type="checkbox" className="text-red-600" /></div>
                       <div className="col-span-full"><FormField form={form} name="critical_husbandry_notes" label="Critical Husbandry Notes (Bullet points via line-breaks)" type="textarea" placeholder="E.g. Requires daily misting\nAggressive during feeding" className="min-h-[100px] text-red-900" /></div>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                       <FormField form={form} name="red_list_status" label="IUCN Red List Status" type="select" options={[{value:'NE', label:'Not Evaluated'}, {value:'DD', label:'Data Deficient'}, {value:'LC', label:'Least Concern'}, {value:'NT', label:'Near Threatened'}, {value:'VU', label:'Vulnerable'}, {value:'EN', label:'Endangered'}, {value:'CR', label:'Critically Endangered'}, {value:'EW', label:'Extinct in Wild'}, {value:'EX', label:'Extinct'}]} />
                       <div className="col-span-full"><FormField form={form} name="special_requirements" label="Special Requirements (Dietary/Medical)" type="textarea" className="h-24" /></div>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 border-t border-slate-100 pt-6">
-                      <div className="col-span-full"><h3 className="text-xs font-black text-slate-800 uppercase tracking-widest flex items-center justify-between">Genetics <div className="mt-1"><FormField form={form} name="lineage_unknown" label="Lineage Unknown" type="checkbox" /></div></h3></div>
+                      <div className="col-span-full"><h3 className="text-xs font-black text-slate-800 uppercase tracking-widest flex items-center justify-between">Genetics <div className="mt-2"><FormField form={form} name="lineage_unknown" label="Lineage Unknown" type="checkbox" /></div></h3></div>
                       <form.Field name="lineage_unknown">{({ state }) => (
                         <>
                           <FormField form={form} name="sire_id" label="Sire UUID" placeholder="UUID or empty" className={`font-mono text-xs ${state.value ? 'opacity-50' : ''}`} disabled={state.value} />
@@ -386,13 +418,12 @@ export function AddAnimalModal({ isOpen, onClose, existingAnimalId }: { isOpen: 
                   </div>
               </div>
 
-              {/* ADMIN */}
               <div className={activeSection === 'admin' ? 'space-y-6' : 'hidden'}>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 bg-amber-50 p-6 rounded-2xl border border-amber-200">
-                      <FormField form={form} name="is_boarding" label="Boarding Animal" type="checkbox" className="text-amber-600" />
-                      <FormField form={form} name="is_quarantine" label="Active Quarantine" type="checkbox" className="text-purple-600" />
+                      <FormField form={form} name="is_boarding" label="Animal is Boarding (External Owner)" type="checkbox" className="text-amber-600" />
+                      <FormField form={form} name="is_quarantine" label="Active Quarantine Protocol" type="checkbox" className="text-purple-600" />
                   </div>
-                  <div className="w-1/3 mt-6"><FormField form={form} name="display_order" label="Dashboard Display Priority" type="number" className="font-mono" /></div>
+                  <div className="w-1/3"><FormField form={form} name="display_order" label="Dashboard Display Order (Sort Priority)" type="number" className="font-mono" /></div>
               </div>
 
             </div>

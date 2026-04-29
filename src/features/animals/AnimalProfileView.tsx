@@ -43,24 +43,21 @@ export function AnimalProfileView({ animalId, onBack }: { animalId: string, onBa
     return id;
   };
 
-  // Type-Defensive Notes Parser
-  const renderCriticalNotes = (notes: any) => {
-    if (!notes) return <p className="text-sm text-red-700 opacity-70">No critical notes.</p>;
-    
-    let notesArray: string[] = [];
+  // TYPE-DEFENSIVE ARRAY RENDERER
+  const renderArrayNotes = (notes: any, emptyText: string, textStyle: string) => {
+    if (!notes) return <p className={`text-sm opacity-70 ${textStyle}`}>{emptyText}</p>;
+    let arr: string[] = [];
     if (Array.isArray(notes)) {
-      notesArray = notes;
+      if (notes.length === 1 && notes[0] === 'none') return <p className={`text-sm opacity-70 ${textStyle}`}>{emptyText}</p>;
+      arr = notes;
     } else if (typeof notes === 'string') {
-      notesArray = notes.split(/\n|\\n/).filter(n => n.trim() !== '');
+      if (notes === 'none') return <p className={`text-sm opacity-70 ${textStyle}`}>{emptyText}</p>;
+      arr = notes.split(/\n|\\n/).filter(n => n.trim() !== '');
     }
-
-    if (notesArray.length === 0) return <p className="text-sm text-red-700 opacity-70">No critical notes.</p>;
-
+    if (arr.length === 0) return <p className={`text-sm opacity-70 ${textStyle}`}>{emptyText}</p>;
     return (
-      <ul className="list-disc list-outside ml-4 space-y-1 text-sm text-red-800 font-medium">
-        {notesArray.map((note, idx) => (
-          <li key={idx}>{typeof note === 'string' ? note.trim() : String(note)}</li>
-        ))}
+      <ul className={`list-disc list-outside ml-4 space-y-1 text-sm font-medium ${textStyle}`}>
+        {arr.map((note, idx) => <li key={idx}>{typeof note === 'string' ? note.trim() : String(note)}</li>)}
       </ul>
     );
   };
@@ -91,7 +88,7 @@ export function AnimalProfileView({ animalId, onBack }: { animalId: string, onBa
             </div>
             <div className="flex flex-col gap-0.5 mb-6">
               <p className="text-slate-400 font-mono text-[10px] uppercase tracking-widest">ID: {animal.id}</p>
-              <p className="text-slate-400 font-mono text-[10px] uppercase tracking-widest">Ring/Chip: {animal.ring_number !== 'unknown' && animal.ring_number ? animal.ring_number : animal.microchip_id !== 'unknown' && animal.microchip_id ? animal.microchip_id : 'Un-ringed'}</p>
+              <p className="text-slate-400 font-mono text-[10px] uppercase tracking-widest">Ring/Chip: {animal.ring_number !== 'unknown' ? animal.ring_number : animal.microchip_id !== 'unknown' ? animal.microchip_id : 'Un-ringed'}</p>
             </div>
             
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-6 gap-x-4 text-sm mb-8">
@@ -133,9 +130,14 @@ export function AnimalProfileView({ animalId, onBack }: { animalId: string, onBa
         {activeTab === 'profile' && (
             <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
               
-              <div className="bg-red-50 border border-red-200 rounded-2xl p-6 lg:col-span-1 xl:col-span-2 shadow-sm">
-                <div className="flex items-center gap-2 mb-4"><AlertTriangle className="text-red-500" size={20} /><h3 className="font-black text-red-900 uppercase tracking-tight">Critical Husbandry Notes</h3></div>
-                {renderCriticalNotes(animal.critical_husbandry_notes)}
+              <div className="bg-white border border-slate-200 rounded-2xl p-6 lg:col-span-1 xl:col-span-2 shadow-sm">
+                <div className="flex items-center gap-2 mb-4"><FileText className="text-slate-400" size={20} /><h3 className="font-black text-slate-800 uppercase tracking-tight">General Description</h3></div>
+                {renderArrayNotes(animal.description, "No description provided.", "text-slate-600")}
+              </div>
+
+              <div className="bg-red-50 border border-red-200 rounded-2xl p-6 lg:col-span-1 xl:col-span-1 shadow-sm">
+                <div className="flex items-center gap-2 mb-4"><AlertTriangle className="text-red-500" size={20} /><h3 className="font-black text-red-900 uppercase tracking-tight">Critical Notes</h3></div>
+                {renderArrayNotes(animal.critical_husbandry_notes, "No critical notes.", "text-red-800")}
               </div>
 
               <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col items-center justify-center relative overflow-hidden">
@@ -174,12 +176,13 @@ export function AnimalProfileView({ animalId, onBack }: { animalId: string, onBa
                 </div>
               </div>
 
-              <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+              <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm lg:col-span-2">
                 <div className="flex items-center gap-2 mb-4"><Thermometer className="text-slate-400" size={20} /><h3 className="font-black text-slate-800 uppercase tracking-tight">Environmental Targets</h3></div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                   <div><span className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">Day Temp</span><span className="text-sm font-bold text-slate-700">{animal.target_day_temp_c !== null ? `${animal.target_day_temp_c}°C` : 'N/A'}</span></div>
                   <div><span className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">Night Temp</span><span className="text-sm font-bold text-slate-700">{animal.target_night_temp_c !== null ? `${animal.target_night_temp_c}°C` : 'N/A'}</span></div>
-                  <div className="col-span-2"><span className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">Humidity Target</span><span className="text-sm font-bold text-slate-700">{animal.target_humidity_min_percent !== null ? `${animal.target_humidity_min_percent}% - ${animal.target_humidity_max_percent}%` : 'N/A'}</span></div>
+                  <div><span className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">Humidity Target</span><span className="text-sm font-bold text-slate-700">{animal.target_humidity_min_percent !== null ? `${animal.target_humidity_min_percent}% - ${animal.target_humidity_max_percent}%` : 'N/A'}</span></div>
+                  <div><span className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">Misting</span><span className="text-sm font-bold text-slate-700">{animal.misting_frequency || 'N/A'}</span></div>
                 </div>
               </div>
             </div>
