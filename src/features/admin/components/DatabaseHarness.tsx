@@ -6,6 +6,7 @@ import { useReactTable, getCoreRowModel, flexRender } from '@tanstack/react-tabl
 const MODULES = [
   { id: 'animals', label: 'Animals Vault' },
   { id: 'daily_logs', label: 'Daily Logs' },
+  { id: 'daily_rounds', label: 'Daily Rounds' },
   { id: 'users', label: 'Staff Users' },
   { id: 'feeding_schedules', label: 'Schedules' }
 ];

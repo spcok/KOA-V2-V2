@@ -30,12 +30,14 @@ export const useSyncStore = create<SyncState>()(
         let logsQuery = 'SELECT * FROM daily_logs';
         let animalsQuery = 'SELECT * FROM animals';
         let schedulesQuery = 'SELECT * FROM feeding_schedules';
+        let roundsQuery = 'SELECT * FROM daily_rounds';
         const params: any[] = [];
 
         if (lastSyncedAt) {
           logsQuery += ' WHERE updated_at > $1';
           animalsQuery += ' WHERE updated_at > $1';
           schedulesQuery += ' WHERE updated_at > $1';
+          roundsQuery += ' WHERE updated_at > $1';
           params.push(lastSyncedAt);
         }
 
@@ -54,6 +56,12 @@ export const useSyncStore = create<SyncState>()(
         const { rows: localSchedules } = await db.query(schedulesQuery, params);
         if (localSchedules.length > 0) {
           const { error } = await supabase.from('feeding_schedules').upsert(localSchedules);
+          if (error) throw error;
+        }
+
+        const { rows: localRounds } = await db.query(roundsQuery, params);
+        if (localRounds.length > 0) {
+          const { error } = await supabase.from('daily_rounds').upsert(localRounds);
           if (error) throw error;
         }
 
@@ -144,6 +152,47 @@ export const useSyncStore = create<SyncState>()(
             });
           }
 
+          // 4. Pull Feeding Schedules (Delta)
+          let schedulesReq = supabase.from('feeding_schedules').select('*');
+          if (lastSyncedAt) schedulesReq = schedulesReq.gt('updated_at', lastSyncedAt);
+          const { data: schedulesData, error: schedulesError } = await schedulesReq;
+          if (schedulesError) throw schedulesError;
+
+          if (schedulesData && schedulesData.length > 0) {
+            await db.transaction(async (tx) => {
+              for (const record of schedulesData) {
+                const cols = ['id', 'animal_id', 'scheduled_date', 'food_type', 'quantity', 'calci_dust', 'additional_notes', 'is_completed', 'completed_at', 'completed_by', 'is_deleted', 'created_by', 'modified_by', 'created_at', 'updated_at'];
+                const placeholders = cols.map((_, i) => `$${i + 1}`).join(', ');
+                const setClause = cols.map(c => `${c} = EXCLUDED.${c}`).join(', ');
+                const values = cols.map(col => record[col]);
+                await tx.query(`INSERT INTO feeding_schedules (${cols.join(', ')}) VALUES (${placeholders}) ON CONFLICT (id) DO UPDATE SET ${setClause}`, values);
+              }
+            });
+          }
+
+          // 5. Pull Daily Rounds (Delta)
+          let roundsReq = supabase.from('daily_rounds').select('*');
+          if (lastSyncedAt) roundsReq = roundsReq.gt('updated_at', lastSyncedAt);
+          const { data: roundsData, error: roundsError } = await roundsReq;
+          if (roundsError) throw roundsError;
+
+          if (roundsData && roundsData.length > 0) {
+            await db.transaction(async (tx) => {
+              for (const record of roundsData) {
+                const cols = [
+                  'id', 'animal_id', 'date', 'shift', 'section', 'is_alive', 
+                  'water_checked', 'locks_secured', 'animal_issue_note', 
+                  'general_section_note', 'completed_by', 'completed_at', 
+                  'is_deleted', 'created_by', 'modified_by', 'created_at', 'updated_at'
+                ];
+                const placeholders = cols.map((_, i) => `$${i + 1}`).join(', ');
+                const setClause = cols.map(c => `${c} = EXCLUDED.${c}`).join(', ');
+                const values = cols.map(col => record[col]);
+                await tx.query(`INSERT INTO daily_rounds (${cols.join(', ')}) VALUES (${placeholders}) ON CONFLICT (id) DO UPDATE SET ${setClause}`, values);
+              }
+            });
+          }
+
           queryClient.invalidateQueries();
         } catch (err) {
           console.error('Delta Pull Error:', err);
@@ -157,8 +206,9 @@ export const useSyncStore = create<SyncState>()(
         try {
           await get().pushToCloud();
           await get().pullFromCloud();
-          // Update the high-water mark only if both succeed
-          set({ lastSyncedAt: new Date().toISOString(), isSyncing: false });
+          // Chrono-Skew Patch: Overlap the high-water mark by 5 minutes
+          const paddedTime = new Date(Date.now() - 5 * 60000).toISOString();
+          set({ lastSyncedAt: paddedTime, isSyncing: false });
         } catch (err) {
           console.error('Sync failed', err);
           set({ isSyncing: false });
@@ -168,18 +218,18 @@ export const useSyncStore = create<SyncState>()(
       initRealtimeSubscription: () => {
         if (get().realtimeChannel) return;
 
-        const channel = supabase.channel('public:daily_logs');
+        const channel = supabase.channel('koa_global_sync');
         set({ realtimeChannel: channel });
 
         channel
-          .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_logs' }, async (payload) => {
+          .on('postgres_changes', { event: '*', schema: 'public' }, async (payload) => {
             const { lastPushedAt } = get();
             // If we pushed within the last 3 seconds, this is almost certainly our own echo. Ignore it.
             if (Date.now() - lastPushedAt < 3000) {
               console.log('Realtime Echo Cancelled: Local mutation detected.');
               return;
             }
-            console.log('Remote mutation detected. Triggering Delta Pull...');
+            console.log(`Remote mutation detected on ${payload.table}. Triggering Delta Pull...`);
             await get().pullFromCloud();
           })
           .subscribe();

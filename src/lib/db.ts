@@ -144,7 +144,65 @@ export const initDb = async () => {
   }
 
   // ==========================================
-  // FUTURE MIGRATIONS GO HERE (e.g., if currentVersion < 2)
+  // MIGRATION V2: Daily Rounds Module
+  // ==========================================
+  if (currentVersion < 2) {
+    console.log('[DB Boot] Executing Migration V2: Daily Rounds...');
+    await db.exec(`
+      CREATE TABLE IF NOT EXISTS daily_rounds (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        round_date date NOT NULL,
+        round_time time,
+        assigned_to uuid,
+        status text DEFAULT 'pending',
+        notes text,
+        is_deleted boolean NOT NULL DEFAULT false,
+        created_by uuid,
+        modified_by uuid,
+        created_at timestamp with time zone NOT NULL DEFAULT now(),
+        updated_at timestamp with time zone NOT NULL DEFAULT now()
+      );
+    `);
+    await db.query('INSERT INTO schema_migrations (version) VALUES (2)');
+    console.log('[DB Boot] Migration V2 Complete.');
+  }
+
+  // ==========================================
+  // MIGRATION V3: Align Daily Rounds with CSV Schema
+  // ==========================================
+  if (currentVersion < 3) {
+    console.log('[DB Boot] Executing Migration V3: Schema Alignment...');
+    
+    await db.exec(`
+      DROP TABLE IF EXISTS daily_rounds;
+      
+      CREATE TABLE daily_rounds (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        animal_id uuid,
+        date date NOT NULL,
+        shift text NOT NULL,
+        section text,
+        is_alive boolean,
+        water_checked boolean,
+        locks_secured boolean,
+        animal_issue_note text,
+        general_section_note text,
+        completed_by uuid,
+        completed_at timestamp with time zone,
+        is_deleted boolean NOT NULL DEFAULT false,
+        created_by uuid,
+        modified_by uuid,
+        created_at timestamp with time zone NOT NULL DEFAULT now(),
+        updated_at timestamp with time zone NOT NULL DEFAULT now()
+      );
+    `);
+    
+    await db.query('INSERT INTO schema_migrations (version) VALUES (3)');
+    console.log('[DB Boot] Migration V3 Complete.');
+  }
+
+  // ==========================================
+  // FUTURE MIGRATIONS GO HERE (e.g., if currentVersion < 4)
   // ==========================================
 
 };

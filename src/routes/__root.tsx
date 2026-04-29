@@ -81,7 +81,7 @@ function RootComponent() {
             {isSidebarOpen && <div className="px-6 pb-2 text-[10px] font-bold tracking-wider text-slate-500 uppercase transition-opacity duration-300">Husbandry</div>}
             <div className="px-3 space-y-1">
               <ActiveLink to="/daily-logs" label="Daily Logs" icon={Icons.logs} />
-              <InactiveItem label="Daily Rounds" icon={Icons.logs} />
+              <ActiveLink to="/daily-rounds" label="Daily Rounds" icon={Icons.logs} />
               <InactiveItem label="Tasks" icon={Icons.logs} />
               <InactiveItem label="Feeding Schedule" icon={Icons.logs} />
             </div>

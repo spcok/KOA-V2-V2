@@ -7,6 +7,7 @@ import { Route as devDbDailylogsRoute } from './routes/dev/db_dailylogs';
 import { Route as dailyLogsRoute } from './routes/daily-logs';
 import { Route as settingsRoute } from './routes/settings';
 import { Route as adminRoute } from './routes/admin';
+import { Route as dailyRoundsRoute } from './routes/daily-rounds';
 
 const routeTree = rootRoute.addChildren([
   loginRoute, 
@@ -15,7 +16,8 @@ const routeTree = rootRoute.addChildren([
   devDbDailylogsRoute, 
   dailyLogsRoute, 
   settingsRoute, 
-  adminRoute
+  adminRoute,
+  dailyRoundsRoute
 ]);
 
 export const router = createRouter({
