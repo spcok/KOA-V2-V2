@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useReactTable, getCoreRowModel, getExpandedRowModel, flexRender, createColumnHelper, ExpandedState } from '@tanstack/react-table';
-import { ChevronDown, ChevronRight, AlertTriangle } from 'lucide-react';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 import { Link } from '@tanstack/react-router';
 
 interface AnimalTableProps {
@@ -44,69 +44,140 @@ export function AnimalTable({ animals, activeTab }: AnimalTableProps) {
     return finalData;
   }, [animals]);
 
-  const columns = useMemo(() => [
-    columnHelper.accessor('name', {
-      header: 'Animal / Mob',
-      cell: (info) => {
-        const row = info.row;
-        const isGroup = row.original.isMobParent;
-        const isChild = row.depth > 0;
-        
-        return (
-          <div className="flex items-center gap-1 sm:gap-2">
-            {isChild ? <div className="w-2 sm:w-4 border-b-2 border-l-2 border-slate-300 h-4 sm:h-6 -mt-2 sm:-mt-4 ml-1 sm:ml-2 rounded-bl-lg shrink-0" /> : null}
-            {isGroup ? (
-              <button
-                onClick={(e) => { e.preventDefault(); row.toggleExpanded(); }}
-                className="p-0.5 sm:p-1 hover:bg-slate-200 rounded-md transition-colors text-slate-500 shrink-0"
-              >
-                {row.getIsExpanded() ? <ChevronDown size={14} className="sm:w-4 sm:h-4" /> : <ChevronRight size={14} className="sm:w-4 sm:h-4" />}
-              </button>
-            ) : null}
-            <Link
-              to="/animals/$animalId"
-              params={{ animalId: row.original.id }}
-              className={`font-black truncate uppercase tracking-tight hover:text-indigo-600 transition-colors ${
-                isGroup ? 'text-slate-800 text-sm sm:text-base cursor-pointer' : 'text-slate-700 text-xs sm:text-sm cursor-pointer'
-              } ${isChild ? 'text-[10px] sm:text-xs text-slate-600' : ''}`}
-            >
-              {info.getValue()}
-            </Link>
-          </div>
+  const columns = useMemo(() => {
+    const cols = [
+      columnHelper.accessor('name', {
+        header: 'Name',
+        cell: (info) => {
+          const row = info.row;
+          const isGroup = row.original.isMobParent;
+          const isChild = row.depth > 0;
+          
+          return (
+            <div className={`flex items-center gap-1 sm:gap-2 ${isChild ? 'pl-4' : ''}`}>
+              {isChild && <span className="text-slate-300 -ml-2">↳</span>}
+              {isGroup && (
+                <button
+                  onClick={(e) => { e.preventDefault(); row.toggleExpanded(); }}
+                  className="p-0.5 hover:bg-slate-200 rounded-md transition-colors text-slate-500 shrink-0"
+                >
+                  {row.getIsExpanded() ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                </button>
+              )}
+              {row.original.isVirtualMob ? (
+                <span className="font-bold text-slate-800">{info.getValue()}</span>
+              ) : (
+                <Link
+                  to="/animals/$animalId"
+                  params={{ animalId: row.original.id }}
+                  className={`font-black truncate uppercase tracking-tight hover:text-indigo-600 transition-colors ${
+                    isGroup ? 'text-slate-800 text-sm sm:text-base' : 'text-slate-700 text-xs sm:text-sm'
+                  }`}
+                >
+                  {info.getValue()}
+                </Link>
+              )}
+              {isGroup && (
+                <span className="text-[10px] font-medium text-slate-500 bg-slate-200 px-1.5 py-0.5 rounded-full ml-1">
+                  {row.original.subRows?.length || 0} individuals
+                </span>
+              )}
+            </div>
+          );
+        },
+      }),
+      columnHelper.accessor('species', {
+        header: () => <span className="hidden xl:table-cell">Species</span>,
+        cell: ({ row, getValue }) => (
+          <span className="hidden xl:table-cell text-slate-500 text-xs">
+            {row.original.isVirtualMob || row.getCanExpand() ? '' : getValue()}
+          </span>
+        ),
+      }),
+    ];
+
+    if (activeTab === 'ARCHIVED') {
+      cols.push(
+        columnHelper.accessor('status', {
+          header: 'Status',
+          cell: ({ row }) => (row.getCanExpand() || row.original.isVirtualMob ? '' : <span className="text-xs font-bold text-slate-600">Archived</span>),
+        }),
+        columnHelper.accessor('archive_reason', {
+          header: 'Reason',
+          cell: ({ row, getValue }) => (row.getCanExpand() || row.original.isVirtualMob ? '' : <span className="text-xs text-slate-600">{getValue() || '-'}</span>),
+        })
+      );
+    } else {
+      if (activeTab !== 'Exotics') {
+        cols.push(
+          columnHelper.accessor('todayWeight', {
+            header: "Today's Weight",
+            cell: ({ row }) => {
+              if (row.getCanExpand() || row.original.isVirtualMob) return '';
+              const log = row.original.todayWeight;
+              if (!log) return <span className="text-xs font-bold text-slate-300">-</span>;
+              const wg = Number(log.weight_grams);
+              if (!isNaN(wg) && wg !== -1 && wg !== 0) return <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-1 rounded-md">{wg}g</span>;
+              return <span className="text-xs font-medium text-slate-700">{log.value && log.value !== 'N/A' && log.value !== 'NONE' ? String(log.value) : '-'}</span>;
+            },
+          })
         );
-      },
-    }),
-    columnHelper.accessor('species', {
-      header: 'Species',
-      cell: (info) => <div className={`truncate max-w-[100px] sm:max-w-none text-[10px] sm:text-xs ${info.row.depth > 0 ? 'text-slate-400 italic' : 'font-bold text-slate-500'}`}>{info.getValue()}</div>,
-    }),
-    columnHelper.accessor('category', {
-      header: 'Category',
-      cell: (info) => <div className="text-[10px] sm:text-xs text-slate-500 font-medium">{info.getValue() || '-'}</div>,
-    }),
-    columnHelper.accessor('gender', {
-      header: 'Sex',
-      cell: (info) => <div className="text-[10px] sm:text-xs text-slate-500 capitalize">{info.getValue() || '-'}</div>,
-    }),
-    columnHelper.accessor('location', {
-      header: 'Location',
-      cell: (info) => <div className={`truncate max-w-[80px] sm:max-w-none text-[10px] sm:text-xs font-black uppercase tracking-widest ${info.row.depth > 0 ? 'text-slate-300' : 'text-slate-400'}`}>{info.getValue()}</div>,
-    }),
-    columnHelper.display({
-      id: 'flags',
-      header: 'Flags',
-      cell: (info) => {
-        const animal = info.row.original;
-        return (
-          <div className="flex gap-1">
-             {animal.is_venomous && <span className="bg-red-100 text-red-800 p-0.5 rounded" title="Venomous"><AlertTriangle size={12}/></span>}
-             {animal.is_boarding && <span className="bg-orange-100 text-orange-800 text-[8px] font-black uppercase px-1.5 py-0.5 rounded">Boarding</span>}
-             {animal.is_quarantine && <span className="bg-purple-100 text-purple-800 text-[8px] font-black uppercase px-1.5 py-0.5 rounded">Quarantine</span>}
-          </div>
-        )
       }
-    })
-  ], []);
+
+      cols.push(
+        columnHelper.accessor('todayFeedLogs', {
+          header: "Today's Feed",
+          cell: ({ row }) => {
+            if (row.getCanExpand() || row.original.isVirtualMob) return '';
+            const logs = row.original.todayFeedLogs;
+            if (!logs || logs.length === 0) return <span className="text-xs font-bold text-slate-300">-</span>;
+            return (
+              <div className="flex flex-col gap-1 min-w-[140px]">
+                {logs.map((log: any) => {
+                  const qty = log.quantity && log.quantity !== -1 ? log.quantity + 'x ' : '';
+                  const food = log.food && log.food !== 'N/A' ? log.food : '';
+                  const text = `${qty}${food}`.trim() || log.value || 'Fed';
+                  const time = log.feed_time && log.feed_time !== '00:00:00'
+                    ? log.feed_time.substring(0, 5)
+                    : new Date(log.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+                  return (
+                    <span key={log.id} className="block leading-tight text-slate-700 font-bold text-[11px] bg-amber-50 border border-amber-100 px-2 py-1 rounded-md w-fit">
+                      {text} <span className="text-[9px] text-amber-600/80 font-black ml-1 whitespace-nowrap">@ {time}</span>
+                    </span>
+                  );
+                })}
+              </div>
+            );
+          },
+        })
+      );
+
+      if (activeTab !== 'Exotics') {
+        cols.push(
+          columnHelper.accessor('lastFedStr', {
+            header: () => <span className="hidden md:table-cell">Last Fed</span>,
+            cell: ({ row, getValue }) => (
+              <span className="hidden md:table-cell text-[11px] font-bold text-slate-400">
+                {row.getCanExpand() || row.original.isVirtualMob ? '' : getValue()}
+              </span>
+            ),
+          })
+        );
+      }
+
+      cols.push(
+        columnHelper.accessor('location', {
+          header: () => <span className="hidden md:table-cell">Location</span>,
+          cell: ({ row, getValue }) => (
+            <span className="hidden md:table-cell text-[10px] font-black tracking-widest uppercase text-slate-500">
+              {row.getCanExpand() || row.original.isVirtualMob ? '' : getValue() || 'Unknown'}
+            </span>
+          ),
+        })
+      );
+    }
+    return cols;
+  }, [activeTab]);
 
   const table = useReactTable({
     data,
@@ -143,7 +214,7 @@ export function AnimalTable({ animals, activeTab }: AnimalTableProps) {
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}
                   </td>
                 ))}
-            </tr>
+              </tr>
             );
           })}
         </tbody>

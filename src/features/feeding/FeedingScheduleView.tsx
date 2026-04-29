@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { db } from '../../lib/db';
 import { queryClient } from '../../lib/queryClient';
@@ -6,7 +6,7 @@ import { useAuthStore } from '../../store/authStore';
 import { useSyncStore } from '../../store/syncStore';
 import { 
   Utensils, Calendar, ChevronLeft, ChevronRight, CheckCircle2, 
-  Trash2, Loader2, Plus, Clock, Info, ShieldAlert, History
+  Trash2, Loader2, Plus, Info, ShieldAlert, History, Edit2, X
 } from 'lucide-react';
 
 const CATEGORIES = ['All', 'Owl', 'Raptor', 'Mammal', 'Exotic', 'Other'];
@@ -24,9 +24,12 @@ export function FeedingScheduleView() {
   const [mode, setMode] = useState<'single' | 'interval'>('single');
   const [intervalDays, setIntervalDays] = useState(1);
   const [occurrences, setOccurrences] = useState(1);
+  const [editId, setEditId] = useState<string | null>(null);
 
   const session = useAuthStore((state) => state.session);
   const currentUserId = session?.user?.id || '00000000-0000-0000-0000-000000000000';
+  // UUID Sanitize: Prevent Postgres Foreign Key Violations
+  const safeUserId = currentUserId === '00000000-0000-0000-0000-000000000000' ? null : currentUserId;
 
   const { data, isLoading } = useQuery({
     queryKey: ['feeding_schedules', viewDate, selectedCategory],
@@ -71,61 +74,82 @@ export function FeedingScheduleView() {
 
   const animals = data?.animals || [];
   const schedules = data?.schedules || [];
-  
   const completedCount = schedules.filter(s => s.is_completed).length;
-  const progress = schedules.length === 0 ? 0 : Math.round((completedCount / schedules.length) * 100);
 
-  const createMutation = useMutation({
+  const saveMutation = useMutation({
     mutationFn: async () => {
-      const datesToSchedule: string[] = [];
-      if (mode === 'single') {
-        datesToSchedule.push(viewDate);
-      } else {
-        for (let i = 0; i < occurrences; i++) {
-          const d = new Date(viewDate);
-          d.setDate(d.getDate() + (i * intervalDays));
-          datesToSchedule.push(d.toISOString().split('T')[0]);
-        }
-      }
-
       await db.transaction(async (tx) => {
-        for (const date of datesToSchedule) {
+        if (editId) {
           await tx.query(
-            `INSERT INTO feeding_schedules (animal_id, scheduled_date, food_type, quantity, calci_dust, additional_notes, created_by, modified_by) VALUES ($1, $2, $3, $4, $5, $6, $7, $7)`,
-            [animalId, date, foodType, Number(quantity) || 0, calciDust, notes, currentUserId]
+            `UPDATE feeding_schedules SET animal_id=$1, food_type=$2, quantity=$3, calci_dust=$4, additional_notes=$5, modified_by=$6, updated_at=now() WHERE id=$7`,
+            [animalId, foodType, Number(quantity) || 0, calciDust, notes, safeUserId, editId]
           );
+        } else {
+          const datesToSchedule: string[] = [];
+          if (mode === 'single') {
+            datesToSchedule.push(viewDate);
+          } else {
+            for (let i = 0; i < occurrences; i++) {
+              const d = new Date(viewDate);
+              d.setDate(d.getDate() + (i * intervalDays));
+              datesToSchedule.push(d.toISOString().split('T')[0]);
+            }
+          }
+          for (const date of datesToSchedule) {
+            await tx.query(
+              `INSERT INTO feeding_schedules (animal_id, scheduled_date, food_type, quantity, calci_dust, additional_notes, created_by, modified_by) VALUES ($1, $2, $3, $4, $5, $6, $7, $7)`,
+              [animalId, date, foodType, Number(quantity) || 0, calciDust, notes, safeUserId]
+            );
+          }
         }
       });
     },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['feeding_schedules'] }); // Aggressive cache wipe
+      await queryClient.invalidateQueries(); 
       useSyncStore.getState().pushToCloud().catch(console.error);
-      setFoodType(''); setQuantity(''); setCalciDust(false); setNotes(''); setMode('single');
-    }
+      cancelEdit();
+    },
+    onError: (err) => alert(`Save failed: ${err.message}`)
   });
 
   const completeMutation = useMutation({
     mutationFn: async (id: string) => {
       await db.query(
         `UPDATE feeding_schedules SET is_completed = true, completed_at = now(), completed_by = $1, updated_at = now(), modified_by = $1 WHERE id = $2`,
-        [currentUserId, id]
+        [safeUserId, id]
       );
     },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['feeding_schedules'] }); // Aggressive cache wipe
+      await queryClient.invalidateQueries();
       useSyncStore.getState().pushToCloud().catch(console.error);
     }
   });
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      await db.query(`UPDATE feeding_schedules SET is_deleted = true, updated_at = now(), modified_by = $1 WHERE id = $2`, [currentUserId, id]);
+      await db.query(`UPDATE feeding_schedules SET is_deleted = true, updated_at = now(), modified_by = $1 WHERE id = $2`, [safeUserId, id]);
     },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['feeding_schedules'] }); // Aggressive cache wipe
+      await queryClient.invalidateQueries(); 
       useSyncStore.getState().pushToCloud().catch(console.error);
-    }
+    },
+    onError: (err) => alert(`Delete failed: ${err.message}`)
   });
+
+  const startEdit = (schedule: any) => {
+    setEditId(schedule.id);
+    setAnimalId(schedule.animal_id);
+    setFoodType(schedule.food_type);
+    setQuantity(String(schedule.quantity));
+    setCalciDust(schedule.calci_dust);
+    setNotes(schedule.additional_notes || '');
+    setMode('single');
+  };
+
+  const cancelEdit = () => {
+    setEditId(null);
+    setAnimalId(''); setFoodType(''); setQuantity(''); setCalciDust(false); setNotes('');
+  };
 
   const changeDate = (days: number) => {
     const d = new Date(viewDate); d.setDate(d.getDate() + days);
@@ -155,17 +179,21 @@ export function FeedingScheduleView() {
         
         <div className="flex overflow-x-auto scrollbar-hide bg-slate-100 p-1.5 rounded-xl gap-1 mt-6">
           {CATEGORIES.map(tab => (
-            <button key={tab} onClick={() => { setSelectedCategory(tab); setAnimalId(''); }} className={`flex-1 min-w-fit px-4 py-2 text-sm font-bold rounded-lg transition-colors ${selectedCategory === tab ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>{tab}</button>
+            <button key={tab} onChange={() => {}} onClick={() => { setSelectedCategory(tab); setAnimalId(''); }} className={`flex-1 min-w-fit px-4 py-2 text-sm font-bold rounded-lg transition-colors ${selectedCategory === tab ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>{tab}</button>
           ))}
         </div>
       </div>
 
       <div className="flex-1 max-w-[1400px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 grid grid-cols-1 lg:grid-cols-12 gap-8">
         <div className="lg:col-span-4 space-y-6">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-            <h2 className="text-sm font-black text-slate-800 uppercase tracking-tight mb-4 flex items-center gap-2">
-              <Plus className="text-emerald-500" size={18}/> Plan Feed
-            </h2>
+          <div className={`bg-white rounded-2xl border shadow-sm p-5 transition-colors ${editId ? 'border-amber-400 bg-amber-50/20' : 'border-slate-200'}`}>
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-sm font-black text-slate-800 uppercase tracking-tight flex items-center gap-2">
+                {editId ? <Edit2 className="text-amber-500" size={18}/> : <Plus className="text-emerald-500" size={18}/>} 
+                {editId ? 'Edit Feed' : 'Plan Feed'}
+              </h2>
+              {editId && <button onClick={cancelEdit} className="text-slate-400 hover:text-rose-500"><X size={18}/></button>}
+            </div>
             
             <div className="space-y-4">
               <div>
@@ -198,12 +226,14 @@ export function FeedingScheduleView() {
               </div>
 
               <div className="border-t border-slate-100 pt-4">
-                <div className="flex bg-slate-100 p-1 rounded-lg mb-4">
-                  <button onClick={() => setMode('single')} className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-colors ${mode === 'single' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Single Day</button>
-                  <button onClick={() => setMode('interval')} className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-colors ${mode === 'interval' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Interval Plan</button>
-                </div>
+                {!editId && (
+                  <div className="flex bg-slate-100 p-1 rounded-lg mb-4">
+                    <button onClick={() => setMode('single')} className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-colors ${mode === 'single' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Single Day</button>
+                    <button onClick={() => setMode('interval')} className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-colors ${mode === 'interval' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Interval Plan</button>
+                  </div>
+                )}
 
-                {mode === 'interval' && (
+                {mode === 'interval' && !editId && (
                   <div className="grid grid-cols-2 gap-3 mb-4 bg-amber-50/50 p-3 rounded-xl border border-amber-100">
                     <div>
                       <label className="block text-[10px] font-black text-amber-700 uppercase tracking-widest mb-1">Every (Days)</label>
@@ -217,12 +247,12 @@ export function FeedingScheduleView() {
                 )}
 
                 <button 
-                  onClick={() => createMutation.mutate()} 
-                  disabled={!isFormValid || createMutation.isPending}
-                  className="w-full py-3 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-black uppercase tracking-widest text-xs flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+                  onClick={() => saveMutation.mutate()} 
+                  disabled={!isFormValid || saveMutation.isPending}
+                  className={`w-full py-3 text-white rounded-xl font-black uppercase tracking-widest text-xs flex items-center justify-center gap-2 transition-colors disabled:opacity-50 ${editId ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-amber-600 hover:bg-amber-700'}`}
                 >
-                  {createMutation.isPending ? <Loader2 size={16} className="animate-spin"/> : <Plus size={16}/>}
-                  {mode === 'interval' ? `Schedule ${occurrences} Feeds` : 'Add to Schedule'}
+                  {saveMutation.isPending ? <Loader2 size={16} className="animate-spin"/> : editId ? <Edit2 size={16}/> : <Plus size={16}/>}
+                  {editId ? 'Update Schedule' : mode === 'interval' ? `Schedule ${occurrences} Feeds` : 'Add to Schedule'}
                 </button>
               </div>
             </div>
@@ -268,16 +298,21 @@ export function FeedingScheduleView() {
                         
                         <div className="flex items-center gap-2 shrink-0 border-l border-slate-100 pl-4">
                            {schedule.is_completed ? (
-                              <div className="flex flex-col items-center justify-center w-12 h-12 rounded-xl bg-emerald-100 text-emerald-600">
-                                 <CheckCircle2 size={24} />
+                              <div className="flex flex-col items-center justify-center w-10 h-10 rounded-xl bg-emerald-100 text-emerald-600">
+                                 <CheckCircle2 size={20} />
                               </div>
                            ) : (
-                              <button onClick={() => completeMutation.mutate(schedule.id)} className="flex flex-col items-center justify-center w-12 h-12 rounded-xl border-2 border-slate-200 bg-slate-50 text-slate-400 hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-600 transition-colors">
-                                 <CheckCircle2 size={20} />
-                              </button>
+                              <>
+                                <button onClick={() => completeMutation.mutate(schedule.id)} className="flex flex-col items-center justify-center w-10 h-10 rounded-xl border border-slate-200 bg-slate-50 text-slate-400 hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-600 transition-colors">
+                                   <CheckCircle2 size={18} />
+                                </button>
+                                <button onClick={() => startEdit(schedule)} className="flex flex-col items-center justify-center w-10 h-10 rounded-xl border border-slate-200 bg-slate-50 text-slate-400 hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-600 transition-colors">
+                                   <Edit2 size={16} />
+                                </button>
+                              </>
                            )}
-                           <button onClick={() => window.confirm('Delete this feed?') && deleteMutation.mutate(schedule.id)} className="flex flex-col items-center justify-center w-12 h-12 rounded-xl border-2 border-slate-200 bg-slate-50 text-slate-400 hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 transition-colors">
-                              <Trash2 size={20} />
+                           <button onClick={() => window.confirm('Delete this feed?') && deleteMutation.mutate(schedule.id)} className="flex flex-col items-center justify-center w-10 h-10 rounded-xl border border-slate-200 bg-slate-50 text-slate-400 hover:border-rose-200 hover:bg-rose-50 hover:text-rose-600 transition-colors">
+                              <Trash2 size={18} />
                            </button>
                         </div>
                      </div>
@@ -287,7 +322,6 @@ export function FeedingScheduleView() {
             </div>
           </div>
         </div>
-
       </div>
     </div>
   );

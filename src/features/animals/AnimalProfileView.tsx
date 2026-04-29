@@ -8,7 +8,7 @@ import { Loader2, ArrowLeft, Archive, RefreshCw, FileText, Stethoscope, Clipboar
 import { IUCNBadge } from './components/IUCNBadge';
 import { HusbandryLogsTab } from './components/HusbandryLogsTab';
 import { SignGenerator } from './components/SignGenerator';
-import { AddAnimalModal } from './components/AddAnimalModal'; 
+import { AddAnimalModal } from './components/AddAnimalModal';
 
 export function AnimalProfileView({ animalId, onBack }: { animalId: string, onBack: () => void }) {
   const [activeTab, setActiveTab] = useState<'profile' | 'medical' | 'husbandry'>('profile');
@@ -38,6 +38,33 @@ export function AnimalProfileView({ animalId, onBack }: { animalId: string, onBa
     }
   });
 
+  const formatId = (id: string | null) => {
+    if (!id || id === '00000000-0000-0000-0000-000000000000' || id === 'unknown') return 'Unknown';
+    return id;
+  };
+
+  // Type-Defensive Notes Parser
+  const renderCriticalNotes = (notes: any) => {
+    if (!notes) return <p className="text-sm text-red-700 opacity-70">No critical notes.</p>;
+    
+    let notesArray: string[] = [];
+    if (Array.isArray(notes)) {
+      notesArray = notes;
+    } else if (typeof notes === 'string') {
+      notesArray = notes.split(/\n|\\n/).filter(n => n.trim() !== '');
+    }
+
+    if (notesArray.length === 0) return <p className="text-sm text-red-700 opacity-70">No critical notes.</p>;
+
+    return (
+      <ul className="list-disc list-outside ml-4 space-y-1 text-sm text-red-800 font-medium">
+        {notesArray.map((note, idx) => (
+          <li key={idx}>{typeof note === 'string' ? note.trim() : String(note)}</li>
+        ))}
+      </ul>
+    );
+  };
+
   if (isLoading) return <div className="flex justify-center items-center min-h-[400px]"><Loader2 className="animate-spin text-emerald-500" size={48}/></div>;
   if (!animal) return <div className="text-center py-12 text-slate-500">Animal not found in local vault.</div>;
 
@@ -45,10 +72,9 @@ export function AnimalProfileView({ animalId, onBack }: { animalId: string, onBa
     <div className="max-w-[1200px] mx-auto pb-20 p-2 md:p-4">
       <button onClick={onBack} className="flex items-center gap-2 text-slate-500 hover:text-slate-800 font-bold text-xs uppercase tracking-widest mb-6 transition-colors"><ArrowLeft size={16}/> Back</button>
       
-      {/* Header Profile Card */}
       <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-4 flex flex-col md:flex-row gap-6 mb-6">
         <div className="w-full md:w-1/3 flex flex-col gap-4">
-          <div className="relative w-full h-[300px] sm:h-[400px] lg:h-[280px] xl:h-[340px] rounded-xl overflow-hidden shadow-sm bg-slate-100">
+          <div className="relative w-full aspect-[4/3] rounded-xl overflow-hidden shadow-sm bg-slate-100 border border-slate-200">
             <img src={animal.image_url && animal.image_url !== '-1' ? animal.image_url : '/offline-media-fallback.svg'} alt={animal.name} className="w-full h-full object-cover" onError={(e) => { e.currentTarget.src = '/offline-media-fallback.svg'; }} />
           </div>
         </div>
@@ -65,7 +91,7 @@ export function AnimalProfileView({ animalId, onBack }: { animalId: string, onBa
             </div>
             <div className="flex flex-col gap-0.5 mb-6">
               <p className="text-slate-400 font-mono text-[10px] uppercase tracking-widest">ID: {animal.id}</p>
-              <p className="text-slate-400 font-mono text-[10px] uppercase tracking-widest">Ring/Chip: {animal.ring_number !== 'unknown' ? animal.ring_number : animal.microchip_id !== 'unknown' ? animal.microchip_id : 'Un-ringed'}</p>
+              <p className="text-slate-400 font-mono text-[10px] uppercase tracking-widest">Ring/Chip: {animal.ring_number !== 'unknown' && animal.ring_number ? animal.ring_number : animal.microchip_id !== 'unknown' && animal.microchip_id ? animal.microchip_id : 'Un-ringed'}</p>
             </div>
             
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-y-6 gap-x-4 text-sm mb-8">
@@ -90,7 +116,6 @@ export function AnimalProfileView({ animalId, onBack }: { animalId: string, onBa
         </div>
       </div>
 
-      {/* Tabs Layout */}
       <div className="border-b border-slate-200 mb-6">
         <nav className="flex gap-6">
           {(['profile', 'medical', 'husbandry'] as const).map(tab => (
@@ -104,21 +129,29 @@ export function AnimalProfileView({ animalId, onBack }: { animalId: string, onBa
         </nav>
       </div>
 
-      {/* Bento Grid Content */}
       <div className="min-h-[400px]">
         {activeTab === 'profile' && (
             <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
               
               <div className="bg-red-50 border border-red-200 rounded-2xl p-6 lg:col-span-1 xl:col-span-2 shadow-sm">
                 <div className="flex items-center gap-2 mb-4"><AlertTriangle className="text-red-500" size={20} /><h3 className="font-black text-red-900 uppercase tracking-tight">Critical Husbandry Notes</h3></div>
-                {animal.critical_husbandry_notes ? <p className="text-sm text-red-800 font-medium whitespace-pre-wrap">{animal.critical_husbandry_notes}</p> : <p className="text-sm text-red-700 opacity-70">No critical notes.</p>}
+                {renderCriticalNotes(animal.critical_husbandry_notes)}
+              </div>
+
+              <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm flex flex-col items-center justify-center relative overflow-hidden">
+                 <div className="absolute inset-0 bg-slate-50 opacity-50"></div>
+                 {animal.distribution_map_url && animal.distribution_map_url !== '-1' ? (
+                   <img src={animal.distribution_map_url} alt="Distribution Map" className="w-full h-full object-contain relative z-10" />
+                 ) : (
+                   <p className="text-slate-400 font-bold text-xs uppercase tracking-widest relative z-10">No Range Map</p>
+                 )}
               </div>
 
               <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
                 <div className="flex items-center gap-2 mb-4"><GitMerge className="text-slate-400" size={20} /><h3 className="font-black text-slate-800 uppercase tracking-tight">Lineage & Genetics</h3></div>
                 <div className="space-y-3">
-                  <div><span className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">Sire ID</span><span className="text-sm font-bold text-slate-700 font-mono">{animal.sire_id || 'Unknown'}</span></div>
-                  <div><span className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">Dam ID</span><span className="text-sm font-bold text-slate-700 font-mono">{animal.dam_id || 'Unknown'}</span></div>
+                  <div><span className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">Sire ID</span><span className="text-sm font-bold text-slate-700 font-mono">{formatId(animal.sire_id)}</span></div>
+                  <div><span className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">Dam ID</span><span className="text-sm font-bold text-slate-700 font-mono">{formatId(animal.dam_id)}</span></div>
                 </div>
               </div>
 
