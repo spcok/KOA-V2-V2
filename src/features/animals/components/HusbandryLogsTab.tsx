@@ -4,15 +4,15 @@ import { db } from '../../../lib/db';
 import { queryClient } from '../../../lib/queryClient';
 import { useSyncStore } from '../../../store/syncStore';
 import { useAuthStore } from '../../../store/authStore';
-import { Loader2, ClipboardList, Plus, Filter, Calendar, X, Save } from 'lucide-react';
+import { Loader2, ClipboardList, Plus, Calendar, Clock, X, Save } from 'lucide-react';
 
-const LOG_TYPES = ['ALL', 'FEED', 'WEIGHT', 'MEDICAL', 'CLEAN', 'OBSERVATION', 'ENVIRONMENT', 'OTHER'];
+const LOG_TYPES = ['ALL', 'FEED', 'WEIGHT', 'TEMPERATURE', 'EVENTS', 'TRAINING', 'FLYING', 'GENERAL'];
 
 // --- EMBEDDED ADD LOG MODAL ---
 function AddProfileLogModal({ animalId, isOpen, onClose }: { animalId: string, isOpen: boolean, onClose: () => void }) {
   const currentUserId = useAuthStore(s => s.session?.user?.id);
   const [formData, setFormData] = useState({
-    log_type: 'OBSERVATION',
+    log_type: 'GENERAL',
     log_date: new Date().toISOString().split('T')[0],
     notes: '',
     weight_grams: '',
@@ -27,7 +27,6 @@ function AddProfileLogModal({ animalId, isOpen, onClose }: { animalId: string, i
     mutationFn: async () => {
       const uId = currentUserId || null;
       
-      // Strict Schema Parsing for daily_logs
       const payload = {
         animal_id: animalId,
         log_type: formData.log_type,
@@ -81,7 +80,6 @@ function AddProfileLogModal({ animalId, isOpen, onClose }: { animalId: string, i
             </div>
           </div>
 
-          {/* Dynamic Fields based on Log Type */}
           {formData.log_type === 'WEIGHT' && (
             <div className="grid grid-cols-2 gap-4 p-4 bg-blue-50 border border-blue-100 rounded-xl">
               <div><label className="block text-[10px] font-black text-blue-700 uppercase tracking-widest mb-1">Weight Value</label><input type="number" value={formData.weight_grams} onChange={e => setFormData({...formData, weight_grams: e.target.value})} className="w-full px-3 py-2 border border-blue-200 rounded-lg text-sm font-bold focus:outline-none" /></div>
@@ -96,15 +94,15 @@ function AddProfileLogModal({ animalId, isOpen, onClose }: { animalId: string, i
             </div>
           )}
 
-          {formData.log_type === 'ENVIRONMENT' && (
-            <div className="grid grid-cols-2 gap-4 p-4 bg-slate-100 border border-slate-200 rounded-xl">
-              <div><label className="block text-[10px] font-black text-slate-600 uppercase tracking-widest mb-1">Ambient Temp (°C)</label><input type="number" value={formData.temperature_c} onChange={e => setFormData({...formData, temperature_c: e.target.value})} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-bold focus:outline-none" /></div>
-              <div><label className="block text-[10px] font-black text-slate-600 uppercase tracking-widest mb-1">Basking Temp (°C)</label><input type="number" value={formData.basking_temp_c} onChange={e => setFormData({...formData, basking_temp_c: e.target.value})} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-bold focus:outline-none" /></div>
+          {formData.log_type === 'TEMPERATURE' && (
+            <div className="grid grid-cols-2 gap-4 p-4 bg-purple-50 border border-purple-100 rounded-xl">
+              <div><label className="block text-[10px] font-black text-purple-700 uppercase tracking-widest mb-1">Ambient Temp (°C)</label><input type="number" value={formData.temperature_c} onChange={e => setFormData({...formData, temperature_c: e.target.value})} className="w-full px-3 py-2 border border-purple-300 rounded-lg text-sm font-bold focus:outline-none" /></div>
+              <div><label className="block text-[10px] font-black text-purple-700 uppercase tracking-widest mb-1">Basking Temp (°C)</label><input type="number" value={formData.basking_temp_c} onChange={e => setFormData({...formData, basking_temp_c: e.target.value})} className="w-full px-3 py-2 border border-purple-300 rounded-lg text-sm font-bold focus:outline-none" /></div>
             </div>
           )}
 
           <div>
-            <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Observational Notes</label>
+            <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Log Notes / Details</label>
             <textarea value={formData.notes} onChange={e => setFormData({...formData, notes: e.target.value})} className="w-full h-24 px-3 py-2 border border-slate-200 rounded-lg text-sm font-medium focus:border-emerald-500 focus:outline-none bg-slate-50" placeholder="Record any relevant details..."></textarea>
           </div>
         </div>
@@ -128,8 +126,13 @@ export function HusbandryLogsTab({ animalId }: { animalId: string }) {
   const { data: logs = [], isLoading } = useQuery({
     queryKey: ['daily_logs', 'animal', animalId],
     queryFn: async () => {
+      // Memory JOIN to retrieve user initials based on modified_by
       const res = await db.query(
-        "SELECT * FROM daily_logs WHERE animal_id = $1 AND is_deleted = false ORDER BY log_date DESC, created_at DESC LIMIT 100",
+        `SELECT d.*, u.initials as user_initials 
+         FROM daily_logs d 
+         LEFT JOIN users u ON d.modified_by = u.id 
+         WHERE d.animal_id = $1 AND d.is_deleted = false 
+         ORDER BY d.log_date DESC, d.created_at DESC LIMIT 100`,
         [animalId]
       );
       return res.rows;
@@ -140,19 +143,22 @@ export function HusbandryLogsTab({ animalId }: { animalId: string }) {
     switch(type.toUpperCase()) {
       case 'FEED': return 'bg-amber-100 text-amber-800';
       case 'WEIGHT': return 'bg-blue-100 text-blue-800';
-      case 'MEDICAL': return 'bg-rose-100 text-rose-800';
-      case 'CLEAN': return 'bg-emerald-100 text-emerald-800';
-      case 'ENVIRONMENT': return 'bg-purple-100 text-purple-800';
+      case 'TEMPERATURE': return 'bg-purple-100 text-purple-800';
+      case 'EVENTS': return 'bg-rose-100 text-rose-800';
+      case 'TRAINING': return 'bg-indigo-100 text-indigo-800';
+      case 'FLYING': return 'bg-cyan-100 text-cyan-800';
       default: return 'bg-slate-100 text-slate-700';
     }
   };
 
   const formatMetrics = (log: any) => {
     const parts = [];
-    if (log.weight_grams) parts.push(`Wt: ${log.weight_grams}${log.weight_unit || 'g'}`);
-    if (log.food) parts.push(`Fed: ${log.quantity ? log.quantity + 'x ' : ''}${log.food}`);
-    if (log.temperature_c) parts.push(`Temp: ${log.temperature_c}°C`);
-    if (log.basking_temp_c) parts.push(`Bask: ${log.basking_temp_c}°C`);
+    if (log.log_type === 'WEIGHT' && log.weight_grams !== null) parts.push(`Wt: ${log.weight_grams}${log.weight_unit || 'g'}`);
+    if (log.log_type === 'FEED' && log.food) parts.push(`Fed: ${log.quantity ? log.quantity + 'x ' : ''}${log.food}`);
+    if (log.log_type === 'TEMPERATURE') {
+      if (log.temperature_c !== null) parts.push(`Ambient: ${log.temperature_c}°C`);
+      if (log.basking_temp_c !== null) parts.push(`Basking: ${log.basking_temp_c}°C`);
+    }
     return parts.length > 0 ? parts.join(' | ') : '-';
   };
 
@@ -163,7 +169,6 @@ export function HusbandryLogsTab({ animalId }: { animalId: string }) {
   return (
     <div className="space-y-6">
       
-      {/* Header & Actions */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
          <div className="flex items-center gap-2">
             <div className="p-2 bg-emerald-50 text-emerald-600 rounded-lg"><ClipboardList size={20}/></div>
@@ -174,7 +179,6 @@ export function HusbandryLogsTab({ animalId }: { animalId: string }) {
          </button>
       </div>
 
-      {/* Filter Bar */}
       <div className="flex overflow-x-auto scrollbar-hide bg-slate-100 p-1.5 rounded-xl gap-1 border border-slate-200">
         {LOG_TYPES.map(tab => (
           <button 
@@ -187,42 +191,55 @@ export function HusbandryLogsTab({ animalId }: { animalId: string }) {
         ))}
       </div>
       
-      {/* Data Table */}
       <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse min-w-[600px]">
+          <table className="w-full text-left border-collapse min-w-[800px]">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200">
-                <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest w-32">Date</th>
-                <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest w-32">Type</th>
-                <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest w-48">Metrics</th>
-                <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Notes</th>
+                <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest w-24">Date</th>
+                <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest w-20">Time</th>
+                <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest w-20">Initials</th>
+                <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest w-28">Type</th>
+                <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest w-1/3">Metrics</th>
+                <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest w-1/4">Notes</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filteredLogs.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="px-4 py-8 text-center text-slate-400 font-medium text-sm">
+                  <td colSpan={6} className="px-4 py-8 text-center text-slate-400 font-medium text-sm">
                     No logs found for this filter.
                   </td>
                 </tr>
               ) : (
-                filteredLogs.map(log => (
-                  <tr key={log.id} className="hover:bg-slate-50 transition-colors group">
-                    <td className="px-4 py-3">
-                      <span className="text-xs font-bold text-slate-600 flex items-center gap-1.5"><Calendar size={12} className="text-slate-400"/> {new Date(log.log_date).toLocaleDateString()}</span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className={`px-2 py-1 text-[9px] font-black uppercase rounded tracking-widest ${getTypeColor(log.log_type)}`}>{log.log_type}</span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className="text-xs font-bold text-slate-700">{formatMetrics(log)}</span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <p className="text-xs font-medium text-slate-600 whitespace-pre-wrap max-w-xl">{log.notes || '-'}</p>
-                    </td>
-                  </tr>
-                ))
+                filteredLogs.map(log => {
+                  const timeStr = log.log_type === 'FEED' && log.feed_time && log.feed_time !== '00:00:00' 
+                    ? log.feed_time.substring(0, 5) 
+                    : new Date(log.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+                  return (
+                    <tr key={log.id} className="hover:bg-slate-50 transition-colors group">
+                      <td className="px-4 py-3">
+                        <span className="text-xs font-bold text-slate-600 flex items-center gap-1.5"><Calendar size={12} className="text-slate-400"/> {new Date(log.log_date).toLocaleDateString()}</span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="text-xs font-bold text-slate-500 flex items-center gap-1.5"><Clock size={12} className="text-slate-400"/> {timeStr}</span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="text-[10px] font-black uppercase text-slate-500 bg-slate-100 border border-slate-200 px-2 py-1 rounded-md">{log.user_initials || '??'}</span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`px-2 py-1 text-[9px] font-black uppercase rounded tracking-widest ${getTypeColor(log.log_type)}`}>{log.log_type}</span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="text-xs font-bold text-slate-700">{formatMetrics(log)}</span>
+                      </td>
+                      <td className="px-4 py-3 max-w-[200px] truncate hover:whitespace-normal hover:break-words">
+                        <p className="text-xs font-medium text-slate-600">{log.notes || '-'}</p>
+                      </td>
+                    </tr>
+                  )
+                })
               )}
             </tbody>
           </table>
@@ -232,8 +249,4 @@ export function HusbandryLogsTab({ animalId }: { animalId: string }) {
       <AddProfileLogModal animalId={animalId} isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
     </div>
   );
-}",
-  "Overwrite": true,
-  "toolAction": "Overwriting HusbandryLogsTab to deploy data table and modal",
-  "toolSummary": "Husbandry Tab overhaul"
 }
