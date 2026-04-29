@@ -1,14 +1,15 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { db } from '../../../lib/db';
-import { Loader2, Play, AlertCircle, Table as TableIcon } from 'lucide-react';
+import { Loader2, Play, AlertCircle, Database as TableIcon } from 'lucide-react';
 import { useReactTable, getCoreRowModel, flexRender } from '@tanstack/react-table';
 
 const MODULES = [
   { id: 'animals', label: 'Animals Vault' },
   { id: 'daily_logs', label: 'Daily Logs' },
   { id: 'daily_rounds', label: 'Daily Rounds' },
+  { id: 'feeding_schedules', label: 'Schedules' },
   { id: 'users', label: 'Staff Users' },
-  { id: 'feeding_schedules', label: 'Schedules' }
+  { id: 'schema_migrations', label: 'Migrations' }
 ];
 
 export function DatabaseHarness() {
@@ -23,7 +24,8 @@ export function DatabaseHarness() {
     setError(null);
     const start = performance.now();
     try {
-      const res = await db.query(`SELECT * FROM ${selectedTable} ORDER BY created_at DESC LIMIT 100`);
+      // Limit to 100 to prevent local memory overflow in the DOM
+      const res = await db.query(`SELECT * FROM ${selectedTable} LIMIT 100`);
       setData(res.rows || []);
     } catch (err: any) {
       setError(err.message || 'Failed to execute query');
@@ -56,6 +58,8 @@ export function DatabaseHarness() {
           displayClass = val === 'TRUE' ? 'text-emerald-600 font-bold' : 'text-rose-600 font-bold';
         } else if (key.includes('id') || key.includes('uuid')) {
           displayClass = "text-blue-600 font-mono text-[10px]";
+        } else if (val instanceof Date) {
+          val = val.toISOString();
         }
         return <span className={displayClass}>{String(val)}</span>;
       }
@@ -66,16 +70,15 @@ export function DatabaseHarness() {
 
   return (
     <div className="flex flex-col h-full space-y-6">
-      {/* Module Button Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         {MODULES.map(mod => (
           <button
             key={mod.id}
             onClick={() => setSelectedTable(mod.id)}
-            className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all ${selectedTable === mod.id ? 'border-amber-500 bg-amber-50 shadow-md transform -translate-y-0.5' : 'border-slate-200 bg-white hover:border-amber-300 hover:bg-slate-50'}`}
+            className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all ${selectedTable === mod.id ? 'border-amber-500 bg-amber-50 shadow-md transform -translate-y-0.5' : 'border-slate-200 bg-white hover:border-amber-300 hover:bg-slate-50'}`}
           >
-            <TableIcon className={selectedTable === mod.id ? 'text-amber-600 mb-2' : 'text-slate-400 mb-2'} size={24} />
-            <span className={`text-sm font-bold ${selectedTable === mod.id ? 'text-amber-900' : 'text-slate-600'}`}>{mod.label}</span>
+            <TableIcon className={selectedTable === mod.id ? 'text-amber-600 mb-2' : 'text-slate-400 mb-2'} size={20} />
+            <span className={`text-[10px] font-black uppercase tracking-widest text-center ${selectedTable === mod.id ? 'text-amber-900' : 'text-slate-600'}`}>{mod.label}</span>
           </button>
         ))}
       </div>
@@ -84,7 +87,7 @@ export function DatabaseHarness() {
         <div className="text-xs font-bold text-slate-500 tracking-wider uppercase">
           {data.length} Rows Returned <span className="mx-2">|</span> {queryTime}ms Execution
         </div>
-        <button onClick={fetchTableData} disabled={loading} className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-md font-bold text-xs flex items-center gap-2 transition-colors disabled:opacity-50">
+        <button onClick={fetchTableData} disabled={loading} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-bold text-xs flex items-center gap-2 transition-colors disabled:opacity-50">
           {loading ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />} Refresh Vault
         </button>
       </div>
@@ -96,7 +99,6 @@ export function DatabaseHarness() {
         </div>
       )}
 
-      {/* TanStack Table Render */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex-1 min-h-[400px]">
         {loading && data.length === 0 ? (
           <div className="h-full flex items-center justify-center p-12"><Loader2 size={32} className="text-amber-500 animate-spin" /></div>
