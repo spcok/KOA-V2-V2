@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { db } from '../../lib/db';
 import { queryClient } from '../../lib/queryClient';
@@ -6,45 +6,21 @@ import { useAuthStore } from '../../store/authStore';
 import { useSyncStore } from '../../store/syncStore';
 import { 
   Utensils, Calendar, ChevronLeft, ChevronRight, CheckCircle2, 
-  Trash2, Loader2, Plus, Info, ShieldAlert, History
+  Trash2, Loader2, Plus, Clock, Info, ShieldAlert, History
 } from 'lucide-react';
 
 const CATEGORIES = ['All', 'Owl', 'Raptor', 'Mammal', 'Exotic', 'Other'];
 
-interface Animal {
-  id: string;
-  name: string;
-  category: string;
-  entity_type: string;
-  parent_mob_id?: string;
-  location?: string;
-}
-
-interface FeedingSchedule {
-  id: string;
-  animal_id: string;
-  scheduled_date: string;
-  food_type: string;
-  quantity: number;
-  calci_dust: boolean;
-  additional_notes: string;
-  is_completed: boolean;
-  animal: Animal;
-}
-
 export function FeedingScheduleView() {
-  // Navigation State
   const [viewDate, setViewDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedCategory, setSelectedCategory] = useState(CATEGORIES[0]);
   
-  // Form State
   const [animalId, setAnimalId] = useState('');
   const [foodType, setFoodType] = useState('');
   const [quantity, setQuantity] = useState('');
   const [calciDust, setCalciDust] = useState(false);
   const [notes, setNotes] = useState('');
   
-  // Interval Engine State
   const [mode, setMode] = useState<'single' | 'interval'>('single');
   const [intervalDays, setIntervalDays] = useState(1);
   const [occurrences, setOccurrences] = useState(1);
@@ -52,11 +28,9 @@ export function FeedingScheduleView() {
   const session = useAuthStore((state) => state.session);
   const currentUserId = session?.user?.id || '00000000-0000-0000-0000-000000000000';
 
-  // 1. Fetch Animals & Schedules
   const { data, isLoading } = useQuery({
     queryKey: ['feeding_schedules', viewDate, selectedCategory],
     queryFn: async () => {
-      // Fetch Animals
       let animalQuery = "SELECT id, name, category, entity_type FROM animals WHERE is_deleted = false";
       const params: any[] = [];
       if (selectedCategory !== 'All') {
@@ -70,20 +44,17 @@ export function FeedingScheduleView() {
       animalQuery += " ORDER BY name ASC";
       const animalRes = await db.query(animalQuery, params);
 
-      // Fetch Schedules for viewDate
       const scheduleRes = await db.query(
         "SELECT * FROM feeding_schedules WHERE scheduled_date = $1 AND is_deleted = false ORDER BY created_at DESC",
         [viewDate]
       );
 
-      // Map animal names to schedules
-      const animalMap = new Map((animalRes.rows as Animal[]).map(a => [a.id, a]));
-      const enrichedSchedules = (scheduleRes.rows as any[]).map(s => ({
+      const animalMap = new Map(animalRes.rows.map(a => [a.id, a]));
+      const enrichedSchedules = scheduleRes.rows.map(s => ({
         ...s,
         animal: animalMap.get(s.animal_id) || { name: 'Unknown Animal', category: 'Unknown' }
-      })) as FeedingSchedule[];
+      }));
 
-      // Filter schedules based on active category tab
       const filteredSchedules = selectedCategory === 'All' 
         ? enrichedSchedules 
         : enrichedSchedules.filter(s => {
@@ -94,7 +65,7 @@ export function FeedingScheduleView() {
             return cat.toLowerCase().includes(selectedCategory.toLowerCase());
         });
 
-      return { animals: animalRes.rows as Animal[], schedules: filteredSchedules };
+      return { animals: animalRes.rows, schedules: filteredSchedules };
     }
   });
 
@@ -104,12 +75,9 @@ export function FeedingScheduleView() {
   const completedCount = schedules.filter(s => s.is_completed).length;
   const progress = schedules.length === 0 ? 0 : Math.round((completedCount / schedules.length) * 100);
 
-  // 2. Mutations
   const createMutation = useMutation({
     mutationFn: async () => {
       const datesToSchedule: string[] = [];
-      
-      // Projection Engine
       if (mode === 'single') {
         datesToSchedule.push(viewDate);
       } else {
@@ -129,8 +97,8 @@ export function FeedingScheduleView() {
         }
       });
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['feeding_schedules'] });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['feeding_schedules'] }); // Aggressive cache wipe
       useSyncStore.getState().pushToCloud().catch(console.error);
       setFoodType(''); setQuantity(''); setCalciDust(false); setNotes(''); setMode('single');
     }
@@ -143,8 +111,8 @@ export function FeedingScheduleView() {
         [currentUserId, id]
       );
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['feeding_schedules'] });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['feeding_schedules'] }); // Aggressive cache wipe
       useSyncStore.getState().pushToCloud().catch(console.error);
     }
   });
@@ -154,12 +122,11 @@ export function FeedingScheduleView() {
       await db.query(`UPDATE feeding_schedules SET is_deleted = true, updated_at = now(), modified_by = $1 WHERE id = $2`, [currentUserId, id]);
     },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['feeding_schedules'] });
+      await queryClient.invalidateQueries({ queryKey: ['feeding_schedules'] }); // Aggressive cache wipe
       useSyncStore.getState().pushToCloud().catch(console.error);
     }
   });
 
-  // Helpers
   const changeDate = (days: number) => {
     const d = new Date(viewDate); d.setDate(d.getDate() + days);
     setViewDate(d.toISOString().split('T')[0]);
@@ -169,7 +136,6 @@ export function FeedingScheduleView() {
 
   return (
     <div className="flex flex-col min-h-full bg-slate-50 relative pb-20">
-      {/* Header */}
       <div className="bg-white border-b border-slate-200 px-4 sm:px-6 lg:px-8 py-6 shadow-sm z-10 relative">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
@@ -187,7 +153,6 @@ export function FeedingScheduleView() {
           </div>
         </div>
         
-        {/* Taxonomy Tabs */}
         <div className="flex overflow-x-auto scrollbar-hide bg-slate-100 p-1.5 rounded-xl gap-1 mt-6">
           {CATEGORIES.map(tab => (
             <button key={tab} onClick={() => { setSelectedCategory(tab); setAnimalId(''); }} className={`flex-1 min-w-fit px-4 py-2 text-sm font-bold rounded-lg transition-colors ${selectedCategory === tab ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>{tab}</button>
@@ -196,8 +161,6 @@ export function FeedingScheduleView() {
       </div>
 
       <div className="flex-1 max-w-[1400px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 grid grid-cols-1 lg:grid-cols-12 gap-8">
-        
-        {/* LEFT PANE: Creation Engine */}
         <div className="lg:col-span-4 space-y-6">
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
             <h2 className="text-sm font-black text-slate-800 uppercase tracking-tight mb-4 flex items-center gap-2">
@@ -266,7 +229,6 @@ export function FeedingScheduleView() {
           </div>
         </div>
 
-        {/* RIGHT PANE: Daily Ledger */}
         <div className="lg:col-span-8">
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col h-full min-h-[500px]">
             <div className="p-5 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
