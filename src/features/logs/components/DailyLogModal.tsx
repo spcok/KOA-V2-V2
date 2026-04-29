@@ -6,6 +6,7 @@ import { db } from '../../../lib/db';
 import { useSyncStore } from '../../../store/syncStore';
 import { queryClient } from '../../../lib/queryClient';
 import { useAuthStore } from '../../../store/authStore';
+import { useMutation } from '@tanstack/react-query';
 import { X, Trash2, Save, Loader2, User } from 'lucide-react';
 import { convertToGrams, convertFromGrams } from '../../../lib/weightUtils';
 
@@ -128,73 +129,90 @@ export function DailyLogModal(props: DailyLogModalProps) {
 }
 
 function DailyLogForm({ isOpen, onClose, animalId, existingLogId, initialData, animalUnit }: DailyLogModalProps & { initialData: any, animalUnit: string }) {
-  const [loading, setLoading] = useState(false);
   const [logType, setLogType] = useState(initialData.log_type);
   const targetUnit = animalUnit === 'lbs_oz' ? 'lb' : (animalUnit === 'oz' ? 'oz' : 'g');
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const session = useAuthStore.getState().session;
+      const currentUserId = session?.user?.id || '00000000-0000-0000-0000-000000000000';
+      await db.query('UPDATE daily_logs SET is_deleted = true, updated_at = NOW(), modified_by = $1 WHERE id = $2', [currentUserId, id]);
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries();
+      useSyncStore.getState().pushToCloud().catch(console.error);
+      onClose();
+    },
+    onError: (err) => {
+      console.error('CRITICAL SQL ERROR:', err);
+      alert('Database Error: Failed to delete log.');
+    }
+  });
+
+  const saveMutation = useMutation({
+    mutationFn: async (payload: any) => {
+      const { value, finalAnimalId, currentUserId, zeroUUID } = payload;
+      
+      const finalLogType = value.log_type || 'general';
+      const finalDate = value.log_date || new Date().toISOString().slice(0, 16);
+      const finalNotes = value.notes ? String(value.notes).trim() : 'NONE';
+      const finalUnit = value.weight_unit && value.weight_unit !== '-1' ? value.weight_unit : animalUnit;
+      const num = (v: any) => (v === "" || v === undefined || v === null || isNaN(Number(v))) ? -1 : Number(v);
+      
+      const finalWeight = num(value.weight_grams);
+      const finalBasking = num(value.basking_temp_c);
+      const finalCool = num(value.cool_temp_c);
+      const finalTemp = num(value.temperature_c);
+      const finalFood = value.food ? String(value.food).trim() : 'N/A';
+      const finalQuantity = num(value.quantity);
+      const finalFeedTime = value.feed_time ? String(value.feed_time) : '00:00:00';
+      const finalFeedMethod = value.feed_method ? String(value.feed_method).trim() : 'N/A';
+      const finalCast = value.cast_status || 'N/A';
+      const finalMisted = value.misted ? String(value.misted).trim() : 'N/A';
+      const finalWater = value.water ? String(value.water).trim() : 'N/A';
+
+      if (existingLogId) {
+        const params = [finalLogType, finalDate, finalNotes, finalWeight, finalUnit, finalBasking, finalCool, finalTemp, finalFood, finalQuantity, finalFeedTime, finalFeedMethod, finalCast, finalMisted, finalWater, currentUserId, existingLogId];
+        await db.query(
+          `UPDATE daily_logs SET log_type = $1, log_date = $2, notes = $3, weight_grams = $4, weight_unit = $5, basking_temp_c = $6, cool_temp_c = $7, temperature_c = $8, food = $9, quantity = $10, feed_time = $11, feed_method = $12, cast_status = $13, misted = $14, water = $15, updated_at = now(), modified_by = $16 WHERE id = $17`,
+          params
+        );
+      } else {
+        const params = [finalAnimalId, finalLogType, finalDate, finalNotes, finalWeight, finalUnit, finalBasking, finalCool, finalTemp, finalFood, finalQuantity, finalFeedTime, finalFeedMethod, finalCast, finalMisted, finalWater, currentUserId, currentUserId];
+        await db.query(
+          `INSERT INTO daily_logs (animal_id, log_type, log_date, notes, weight_grams, weight_unit, basking_temp_c, cool_temp_c, temperature_c, food, quantity, feed_time, feed_method, cast_status, misted, water, created_at, updated_at, created_by, modified_by) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, now(), now(), $17, $18)`,
+          params
+        );
+      }
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries();
+      useSyncStore.getState().pushToCloud().catch(console.error);
+      onClose();
+    },
+    onError: (err) => {
+      console.error('CRITICAL SQL ERROR:', err);
+      alert('Database Error: Failed to save log.');
+    }
+  });
 
   const form = useForm({
     validatorAdapter: zodValidator,
     defaultValues: initialData,
     onSubmit: async ({ value }) => {
-      setLoading(true);
-      try {
-        const session = useAuthStore.getState().session;
-        const currentUserId = session?.user?.id || '00000000-0000-0000-0000-000000000000';
-        
-        const finalAnimalId = animalId || '00000000-0000-0000-0000-000000000000';
-        const finalLogType = value.log_type || 'general';
-        const finalDate = value.log_date || new Date().toISOString().slice(0, 16);
-        const finalNotes = value.notes ? String(value.notes).trim() : 'NONE';
-
-        const finalUnit = value.weight_unit && value.weight_unit !== '-1' ? value.weight_unit : animalUnit;
-        const num = (v: any) => (v === "" || v === undefined || v === null || isNaN(Number(v))) ? -1 : Number(v);
-        const finalWeight = num(value.weight_grams);
-        const finalBasking = num(value.basking_temp_c);
-        const finalCool = num(value.cool_temp_c);
-        const finalTemp = num(value.temperature_c);
-        const finalFood = value.food ? String(value.food).trim() : 'N/A';
-        const finalQuantity = num(value.quantity);
-        const finalFeedTime = value.feed_time ? String(value.feed_time) : '00:00:00';
-        const finalFeedMethod = value.feed_method ? String(value.feed_method).trim() : 'N/A';
-        const finalCast = value.cast_status || 'N/A';
-        const finalMisted = value.misted ? String(value.misted).trim() : 'N/A';
-        const finalWater = value.water ? String(value.water).trim() : 'N/A';
-        const zeroUUID = '00000000-0000-0000-0000-000000000000';
-
-        if (existingLogId) {
-          const params = [finalLogType, finalDate, finalNotes, finalWeight, finalUnit, finalBasking, finalCool, finalTemp, finalFood, finalQuantity, finalFeedTime, finalFeedMethod, finalCast, finalMisted, finalWater, currentUserId, existingLogId];
-          await db.query(
-            `UPDATE daily_logs SET log_type = $1, log_date = $2, notes = $3, weight_grams = $4, weight_unit = $5, basking_temp_c = $6, cool_temp_c = $7, temperature_c = $8, food = $9, quantity = $10, feed_time = $11, feed_method = $12, cast_status = $13, misted = $14, water = $15, updated_at = now(), modified_by = $16 WHERE id = $17`,
-            params
-          );
-        } else {
-          const params = [finalAnimalId, finalLogType, finalDate, finalNotes, finalWeight, finalUnit, finalBasking, finalCool, finalTemp, finalFood, finalQuantity, finalFeedTime, finalFeedMethod, finalCast, finalMisted, finalWater, currentUserId, currentUserId];
-          await db.query(
-            `INSERT INTO daily_logs (animal_id, log_type, log_date, notes, weight_grams, weight_unit, basking_temp_c, cool_temp_c, temperature_c, food, quantity, feed_time, feed_method, cast_status, misted, water, created_at, updated_at, created_by, modified_by) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, now(), now(), $17, $18)`,
-            params
-          );
-        }
-        await queryClient.invalidateQueries();
-        useSyncStore.getState().pushToCloud().catch(console.error);
-        onClose();
-      } catch (err) {
-        console.error('CRITICAL SQL ERROR:', err);
-        alert('Database Error: Check console');
-      } finally {
-        setLoading(false);
-      }
+      const session = useAuthStore.getState().session;
+      const currentUserId = session?.user?.id || '00000000-0000-0000-0000-000000000000';
+      const finalAnimalId = animalId || '00000000-0000-0000-0000-000000000000';
+      const zeroUUID = '00000000-0000-0000-0000-000000000000';
+      
+      saveMutation.mutate({ value, finalAnimalId, currentUserId, zeroUUID });
     },
   });
 
-  const handleDelete = async () => {
+  const handleDelete = () => {
     if (!existingLogId) return;
     if (window.confirm('Are you sure you want to delete this log?')) {
-      const session = useAuthStore.getState().session;
-      const currentUserId = session?.user?.id || '00000000-0000-0000-0000-000000000000';
-      await db.query('UPDATE daily_logs SET is_deleted = true, updated_at = NOW(), modified_by = $1 WHERE id = $2', [currentUserId, existingLogId]);
-      await queryClient.invalidateQueries();
-      useSyncStore.getState().pushToCloud().catch(console.error);
-      onClose();
+      deleteMutation.mutate(existingLogId);
     }
   };
 
@@ -372,14 +390,14 @@ function DailyLogForm({ isOpen, onClose, animalId, existingLogId, initialData, a
 
         <div className="p-5 border-t border-slate-100 bg-slate-50/50 flex justify-between gap-3 shrink-0">
           {existingLogId ? (
-            <button type="button" onClick={handleDelete} className="px-4 py-2 border border-red-200 text-red-600 hover:bg-red-50 rounded-xl font-bold uppercase text-xs tracking-wider transition-colors flex items-center gap-2">
-              <Trash2 size={16} /> Delete
+            <button type="button" onClick={handleDelete} className="px-4 py-2 border border-red-200 text-red-600 hover:bg-red-50 rounded-xl font-bold uppercase text-xs tracking-wider transition-colors flex items-center gap-2" disabled={saveMutation.isPending || deleteMutation.isPending}>
+              {deleteMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />} Delete
             </button>
           ) : <div></div>}
           <div className="flex gap-2">
             <button type="button" onClick={onClose} className="px-6 py-2 bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 rounded-xl font-bold uppercase text-xs tracking-wider transition-colors">Cancel</button>
-            <button type="button" onClick={() => form.handleSubmit()} disabled={loading} className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold uppercase text-xs tracking-wider transition-colors flex items-center gap-2">
-              {loading ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} Save
+            <button type="button" onClick={() => form.handleSubmit()} disabled={saveMutation.isPending || deleteMutation.isPending} className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold uppercase text-xs tracking-wider transition-colors flex items-center gap-2">
+              {saveMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} Save
             </button>
           </div>
         </div>

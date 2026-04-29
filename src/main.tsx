@@ -1,10 +1,34 @@
-// src/main.tsx
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from './lib/queryClient';
-import App from './App';
+import { RouterProvider } from '@tanstack/react-router';
+import { router } from './router';
+import { useAuthStore } from './store/authStore';
 import './index.css';
+
+// OS Eviction Defense: Request persistent storage to protect PGLite IndexedDB
+async function requestPersistentStorage() {
+  if (navigator.storage && navigator.storage.persist) {
+    try {
+      const isPersisted = await navigator.storage.persist();
+      console.log(`[Storage] Persistence granted: ${isPersisted}`);
+      if (!isPersisted) {
+        console.warn('[Storage] Persistence denied by OS. Data may be evicted if device storage fills up.');
+      }
+    } catch (err) {
+      console.error('[Storage] Failed to request persistence:', err);
+    }
+  }
+}
+
+// Execute immediately on boot
+requestPersistentStorage();
+
+function App() {
+  const auth = useAuthStore();
+  return <RouterProvider router={router} context={{ auth }} />;
+}
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

@@ -1,17 +1,25 @@
-import { createRootRoute, Outlet, useLocation, Link } from '@tanstack/react-router';
-import { AuthGuard } from '../components/auth/AuthGuard';
+import { createRootRouteWithContext, Outlet, useLocation, Link, redirect } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 import { initDb } from '../lib/db';
-import { useAuthStore } from '../store/authStore';
 import { useSyncStore } from '../store/syncStore';
+import { useAuthStore } from '../store/authStore';
 
-export const Route = createRootRoute({
+interface MyRouterContext {
+  auth: ReturnType<typeof useAuthStore>;
+}
+
+export const Route = createRootRouteWithContext<MyRouterContext>()({
+  beforeLoad: ({ context, location }) => {
+    if (!context.auth.session && location.pathname !== '/login') {
+      throw redirect({ to: '/login' });
+    }
+  },
   component: RootComponent,
 });
 
 function RootComponent() {
   const location = useLocation();
-  const { session } = useAuthStore();
+  const { session } = Route.useRouteContext().auth;
   const { pullFromCloud } = useSyncStore();
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
@@ -26,31 +34,18 @@ function RootComponent() {
   }, [session, pullFromCloud]);
 
   if (location.pathname === '/login') {
-    return (
-      <AuthGuard>
-        <Outlet />
-      </AuthGuard>
-    );
+    return <Outlet />;
   }
 
   const ActiveLink = ({ to, icon, label }: { to: string, icon: JSX.Element, label: string }) => (
-    <Link
-      to={to}
-      activeProps={{ className: "bg-emerald-500 text-slate-900 font-bold shadow-sm" }}
-      inactiveProps={{ className: "text-slate-300 hover:text-white hover:bg-slate-800/50" }}
-      className={`flex items-center gap-3 px-3 py-2 rounded transition-all duration-200 ${isSidebarOpen ? '' : 'justify-center'}`}
-      title={!isSidebarOpen ? label : undefined}
-    >
+    <Link to={to} activeProps={{ className: "bg-emerald-500 text-slate-900 font-bold shadow-sm" }} inactiveProps={{ className: "text-slate-300 hover:text-white hover:bg-slate-800/50" }} className={`flex items-center gap-3 px-3 py-2 rounded transition-all duration-200 ${isSidebarOpen ? '' : 'justify-center'}`} title={!isSidebarOpen ? label : undefined}>
       <div className="shrink-0">{icon}</div>
       {isSidebarOpen && <span className="text-sm truncate">{label}</span>}
     </Link>
   );
 
   const InactiveItem = ({ icon, label }: { icon: JSX.Element, label: string }) => (
-    <div
-      className={`flex items-center gap-3 px-3 py-2 text-slate-500 hover:text-slate-300 hover:bg-slate-800/30 rounded cursor-not-allowed transition-all duration-200 ${isSidebarOpen ? '' : 'justify-center'}`}
-      title={!isSidebarOpen ? `${label} (Coming Soon)` : undefined}
-    >
+    <div className={`flex items-center gap-3 px-3 py-2 text-slate-500 hover:text-slate-300 hover:bg-slate-800/30 rounded cursor-not-allowed transition-all duration-200 ${isSidebarOpen ? '' : 'justify-center'}`} title={!isSidebarOpen ? `${label} (Coming Soon)` : undefined}>
       <div className="shrink-0 opacity-50">{icon}</div>
       {isSidebarOpen && <span className="text-sm truncate">{label}</span>}
     </div>
@@ -68,101 +63,91 @@ function RootComponent() {
   };
 
   return (
-    <AuthGuard>
-      <div className="flex h-screen w-full bg-[#171f30] font-sans text-slate-300 overflow-hidden">
+    <div className="flex h-screen w-full bg-[#171f30] font-sans text-slate-300 overflow-hidden">
+      <aside className={`${isSidebarOpen ? 'w-64' : 'w-20'} flex-shrink-0 flex flex-col border-r border-slate-800/50 transition-all duration-300 ease-in-out z-20 bg-[#171f30]`}>
+        <div className="flex items-center justify-center h-16 px-4 bg-[#0f172a] shrink-0">
+          {isSidebarOpen ? <h1 className="text-xl font-bold tracking-tight text-white truncate w-full text-center transition-opacity duration-300">KOA Manager</h1> : <h1 className="text-xl font-bold tracking-tight text-emerald-500 transition-opacity duration-300">KM</h1>}
+        </div>
         
-        <aside className={`${isSidebarOpen ? 'w-64' : 'w-20'} flex-shrink-0 flex flex-col border-r border-slate-800/50 transition-all duration-300 ease-in-out z-20 bg-[#171f30]`}>
-          <div className="flex items-center justify-center h-16 px-4 bg-[#0f172a] shrink-0">
-            {isSidebarOpen ? (
-              <h1 className="text-xl font-bold tracking-tight text-white truncate w-full text-center transition-opacity duration-300">KOA Manager</h1>
-            ) : (
-              <h1 className="text-xl font-bold tracking-tight text-emerald-500 transition-opacity duration-300">KM</h1>
-            )}
+        <nav className="flex-1 py-4 overflow-y-auto overflow-x-hidden flex flex-col gap-6 scrollbar-hide">
+          <div>
+            {isSidebarOpen && <div className="px-6 pb-2 text-[10px] font-bold tracking-wider text-slate-500 uppercase transition-opacity duration-300">Overview</div>}
+            <div className="px-3 space-y-1">
+              <ActiveLink to="/" label="Dashboard" icon={Icons.dashboard} />
+            </div>
           </div>
-          
-          <nav className="flex-1 py-4 overflow-y-auto overflow-x-hidden flex flex-col gap-6 scrollbar-hide">
-            
-            <div>
-              {isSidebarOpen && <div className="px-6 pb-2 text-[10px] font-bold tracking-wider text-slate-500 uppercase transition-opacity duration-300">Overview</div>}
-              <div className="px-3 space-y-1">
-                <ActiveLink to="/" label="Dashboard" icon={Icons.dashboard} />
-              </div>
-            </div>
 
-            <div>
-              {isSidebarOpen && <div className="px-6 pb-2 text-[10px] font-bold tracking-wider text-slate-500 uppercase transition-opacity duration-300">Husbandry</div>}
-              <div className="px-3 space-y-1">
-                <ActiveLink to="/daily-logs" label="Daily Logs" icon={Icons.logs} />
-                <InactiveItem label="Daily Rounds" icon={Icons.logs} />
-                <InactiveItem label="Tasks" icon={Icons.logs} />
-                <InactiveItem label="Feeding Schedule" icon={Icons.logs} />
-              </div>
+          <div>
+            {isSidebarOpen && <div className="px-6 pb-2 text-[10px] font-bold tracking-wider text-slate-500 uppercase transition-opacity duration-300">Husbandry</div>}
+            <div className="px-3 space-y-1">
+              <ActiveLink to="/daily-logs" label="Daily Logs" icon={Icons.logs} />
+              <InactiveItem label="Daily Rounds" icon={Icons.logs} />
+              <InactiveItem label="Tasks" icon={Icons.logs} />
+              <InactiveItem label="Feeding Schedule" icon={Icons.logs} />
             </div>
-
-            <div>
-              {isSidebarOpen && <div className="px-6 pb-2 text-[10px] font-bold tracking-wider text-slate-500 uppercase transition-opacity duration-300">Animals</div>}
-              <div className="px-3 space-y-1">
-                <InactiveItem label="Animals" icon={Icons.generic} />
-                <InactiveItem label="Clinical Notes" icon={Icons.generic} />
-                <InactiveItem label="Medications" icon={Icons.generic} />
-                <InactiveItem label="Quarantine" icon={Icons.generic} />
-              </div>
-            </div>
-
-            <div>
-              {isSidebarOpen && <div className="px-6 pb-2 text-[10px] font-bold tracking-wider text-slate-500 uppercase transition-opacity duration-300">Logistics</div>}
-              <div className="px-3 space-y-1">
-                <InactiveItem label="Movements" icon={Icons.logistics} />
-                <InactiveItem label="Flight Records" icon={Icons.logistics} />
-              </div>
-            </div>
-
-            <div>
-              {isSidebarOpen && <div className="px-6 pb-2 text-[10px] font-bold tracking-wider text-slate-500 uppercase transition-opacity duration-300">Safety</div>}
-              <div className="px-3 space-y-1">
-                <InactiveItem label="Maintenance" icon={Icons.safety} />
-              </div>
-            </div>
-          </nav>
-          
-          <div className="p-4 border-t border-slate-800/50 shrink-0 space-y-1">
-            <ActiveLink to="/settings" label="Settings" icon={Icons.cog} />
-            <ActiveLink to="/admin" label="Admin" icon={Icons.admin} />
-            <InactiveItem label="Logout" icon={Icons.logout} />
           </div>
-        </aside>
 
-        <main className="flex-1 flex flex-col bg-slate-50 text-slate-900 border-l border-slate-300 relative min-w-0">
-          <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 shrink-0 relative z-10 shadow-sm">
-            <div className="flex items-center">
-              <button 
-                onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-                className="p-2 hover:bg-slate-100 rounded-full text-slate-500 transition-colors"
-              >
-                <svg className={`w-5 h-5 transition-transform duration-300 ${isSidebarOpen ? '' : 'rotate-180'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7"></path></svg>
-              </button>
+          <div>
+            {isSidebarOpen && <div className="px-6 pb-2 text-[10px] font-bold tracking-wider text-slate-500 uppercase transition-opacity duration-300">Animals</div>}
+            <div className="px-3 space-y-1">
+              <InactiveItem label="Animals" icon={Icons.generic} />
+              <InactiveItem label="Clinical Notes" icon={Icons.generic} />
+              <InactiveItem label="Medications" icon={Icons.generic} />
+              <InactiveItem label="Quarantine" icon={Icons.generic} />
             </div>
-            <div className="flex items-center gap-4">
-              <button className="flex items-center gap-2 px-4 py-1.5 border border-emerald-500 text-emerald-600 rounded-full text-sm font-bold tracking-wider hover:bg-emerald-50 transition-colors">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                CLOCK IN
-              </button>
-              <div className="h-6 w-px bg-slate-200"></div>
-              <div className="flex items-center gap-3">
-                <span className="text-sm font-semibold text-slate-700 hidden sm:block">Charlotte Davis-Whytock</span>
-                <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 font-bold text-sm">
-                  C
-                </div>
+          </div>
+
+          <div>
+            {isSidebarOpen && <div className="px-6 pb-2 text-[10px] font-bold tracking-wider text-slate-500 uppercase transition-opacity duration-300">Logistics</div>}
+            <div className="px-3 space-y-1">
+              <InactiveItem label="Movements" icon={Icons.logistics} />
+              <InactiveItem label="Flight Records" icon={Icons.logistics} />
+            </div>
+          </div>
+
+          <div>
+            {isSidebarOpen && <div className="px-6 pb-2 text-[10px] font-bold tracking-wider text-slate-500 uppercase transition-opacity duration-300">Safety</div>}
+            <div className="px-3 space-y-1">
+              <InactiveItem label="Maintenance" icon={Icons.safety} />
+            </div>
+          </div>
+        </nav>
+        
+        <div className="p-4 border-t border-slate-800/50 shrink-0 space-y-1">
+          <ActiveLink to="/settings" label="Settings" icon={Icons.cog} />
+          <ActiveLink to="/admin" label="Admin" icon={Icons.admin} />
+          <button onClick={async () => { await useAuthStore.getState().signOut(); }} className={`w-full flex items-center gap-3 px-3 py-2 text-slate-500 hover:text-rose-400 hover:bg-slate-800/30 rounded transition-all duration-200 ${isSidebarOpen ? '' : 'justify-center'}`} title={!isSidebarOpen ? "Logout" : undefined}>
+            <div className="shrink-0">{Icons.logout}</div>
+            {isSidebarOpen && <span className="text-sm truncate">Logout</span>}
+          </button>
+        </div>
+      </aside>
+
+      <main className="flex-1 flex flex-col bg-slate-50 text-slate-900 border-l border-slate-300 relative min-w-0">
+        <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 shrink-0 relative z-10 shadow-sm">
+          <div className="flex items-center">
+            <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2 hover:bg-slate-100 rounded-full text-slate-500 transition-colors">
+              <svg className={`w-5 h-5 transition-transform duration-300 ${isSidebarOpen ? '' : 'rotate-180'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7"></path></svg>
+            </button>
+          </div>
+          <div className="flex items-center gap-4">
+            <button className="flex items-center gap-2 px-4 py-1.5 border border-emerald-500 text-emerald-600 rounded-full text-sm font-bold tracking-wider hover:bg-emerald-50 transition-colors">
+              CLOCK IN
+            </button>
+            <div className="h-6 w-px bg-slate-200"></div>
+            <div className="flex items-center gap-3">
+              <span className="text-sm font-semibold text-slate-700 hidden sm:block">{session?.user?.email || 'Active User'}</span>
+              <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 font-bold text-sm">
+                U
               </div>
             </div>
-          </header>
-
-          <div className="flex-1 overflow-y-auto relative">
-             <Outlet />
           </div>
-        </main>
-      </div>
-    </AuthGuard>
+        </header>
+
+        <div className="flex-1 overflow-y-auto relative">
+           <Outlet />
+        </div>
+      </main>
+    </div>
   );
 }
-
