@@ -1,4 +1,4 @@
-import { StrictMode } from 'react';
+import { StrictMode, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from './lib/queryClient';
@@ -11,22 +11,31 @@ import './index.css';
 async function requestPersistentStorage() {
   if (navigator.storage && navigator.storage.persist) {
     try {
-      const isPersisted = await navigator.storage.persist();
-      console.log(`[Storage] Persistence granted: ${isPersisted}`);
-      if (!isPersisted) {
-        console.warn('[Storage] Persistence denied by OS. Data may be evicted if device storage fills up.');
-      }
+      await navigator.storage.persist();
     } catch (err) {
       console.error('[Storage] Failed to request persistence:', err);
     }
   }
 }
-
-// Execute immediately on boot
 requestPersistentStorage();
 
 function App() {
   const auth = useAuthStore();
+  
+  // Initialize Supabase session on boot
+  useEffect(() => {
+    auth.initialize();
+  }, []);
+
+  // Block the Router from booting until Supabase has checked local storage
+  if (!auth.isInitialized) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#171f30] text-emerald-500 font-mono text-sm tracking-widest uppercase">
+        Initializing Offline Vault...
+      </div>
+    );
+  }
+
   return <RouterProvider router={router} context={{ auth }} />;
 }
 

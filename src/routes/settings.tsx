@@ -15,7 +15,7 @@ function SettingsView() {
     <div className="max-w-[1000px] mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6 pb-20">
       <div>
         <h1 className="text-3xl font-bold text-slate-900">Settings</h1>
-        <p className="text-slate-500 mt-0.5 text-sm">Manage your personal account</p>
+        <p className="text-slate-500 mt-0.5 text-sm">Manage your personal account and preferences</p>
       </div>
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
         <h2 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2"><User className="text-slate-400"/> Active Profile</h2>
