@@ -112,7 +112,7 @@ function RootComponent() {
           <div>
             {isSidebarOpen && <div className="px-6 pb-2 text-[10px] font-bold tracking-wider text-slate-500 uppercase transition-opacity duration-300">Safety</div>}
             <div className="px-3 space-y-1">
-              <InactiveItem label="Maintenance" icon={Icons.safety} />
+              <ActiveLink to="/maintenance" label="Maintenance" icon={Icons.safety} />
             </div>
           </div>
         </nav>

@@ -98,7 +98,7 @@ export function AnimalTable({ animals, activeTab }: AnimalTableProps) {
 
     if (activeTab === 'ARCHIVED') {
       cols.push(
-        columnHelper.accessor('status', {
+        columnHelper.accessor('archived', {
           header: 'Status',
           cell: ({ row }) => (row.getCanExpand() || row.original.isVirtualMob ? '' : <span className="text-xs font-bold text-slate-600">Archived</span>),
         }),

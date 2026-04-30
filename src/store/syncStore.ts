@@ -43,7 +43,8 @@ export const useSyncStore = create<SyncState>()(
             { table: 'daily_logs', filter: baseWhere },
             { table: 'feeding_schedules', filter: baseWhere },
             { table: 'daily_rounds', filter: ` WHERE completed_by IS NOT NULL${andWhere}` },
-            { table: 'tasks', filter: baseWhere }
+            { table: 'tasks', filter: baseWhere },
+            { table: 'maintenance_tickets', filter: baseWhere }
           ];
 
           for (const def of pushDefinitions) {
@@ -77,11 +78,12 @@ export const useSyncStore = create<SyncState>()(
           }
 
           const tablesToPull = [
-            { name: 'animals', cols: ['id', 'entity_type', 'parent_mob_id', 'census_count', 'name', 'species', 'latin_name', 'category', 'location', 'image_url', 'distribution_map_url', 'hazard_rating', 'is_venomous', 'weight_unit', 'flying_weight_g', 'winter_weight_g', 'average_target_weight', 'date_of_birth', 'is_dob_unknown', 'gender', 'microchip_id', 'ring_number', 'has_no_id', 'red_list_status', 'description', 'special_requirements', 'critical_husbandry_notes', 'ambient_temp_only', 'target_day_temp_c', 'target_night_temp_c', 'water_tipping_temp', 'target_humidity_min_percent', 'target_humidity_max_percent', 'misting_frequency', 'acquisition_date', 'acquisition_type', 'origin', 'origin_location', 'lineage_unknown', 'sire_id', 'dam_id', 'is_boarding', 'is_quarantine', 'display_order', 'archived', 'archive_reason', 'archive_type', 'archived_at', 'is_deleted', 'created_by', 'modified_by', 'created_at', 'updated_at', 'sign_content'] },
+            { name: 'animals', cols: ['id', 'name', 'species', 'location', 'entity_type', 'parent_mob_id', 'census_count', 'latin_name', 'category', 'image_url', 'distribution_map_url', 'hazard_rating', 'is_venomous', 'weight_unit', 'flying_weight_g', 'winter_weight_g', 'average_target_weight', 'date_of_birth', 'is_dob_unknown', 'gender', 'microchip_id', 'ring_number', 'has_no_id', 'red_list_status', 'description', 'special_requirements', 'critical_husbandry_notes', 'ambient_temp_only', 'target_day_temp_c', 'target_night_temp_c', 'water_tipping_temp', 'target_humidity_min_percent', 'target_humidity_max_percent', 'misting_frequency', 'acquisition_date', 'acquisition_type', 'origin', 'origin_location', 'lineage_unknown', 'sire_id', 'dam_id', 'is_boarding', 'is_quarantine', 'display_order', 'archived', 'archive_reason', 'archive_type', 'archived_at', 'sign_content', 'is_deleted', 'created_by', 'modified_by', 'created_at', 'updated_at'] },
             { name: 'daily_logs', cols: ['id', 'animal_id', 'log_type', 'log_date', 'notes', 'weight_grams', 'weight_unit', 'basking_temp_c', 'cool_temp_c', 'temperature_c', 'food', 'quantity', 'feed_time', 'feed_method', 'cast_status', 'misted', 'water', 'is_deleted', 'created_by', 'modified_by', 'created_at', 'updated_at'] },
             { name: 'feeding_schedules', cols: ['id', 'animal_id', 'scheduled_date', 'food_type', 'quantity', 'calci_dust', 'additional_notes', 'is_completed', 'completed_at', 'completed_by', 'is_deleted', 'created_by', 'modified_by', 'created_at', 'updated_at'] },
             { name: 'daily_rounds', cols: ['id', 'animal_id', 'date', 'shift', 'section', 'is_alive', 'water_checked', 'locks_secured', 'animal_issue_note', 'general_section_note', 'completed_by', 'completed_at', 'is_deleted', 'created_by', 'modified_by', 'created_at', 'updated_at'] },
-            { name: 'tasks', cols: ['id', 'title', 'description', 'assigned_to', 'due_date', 'task_type', 'status', 'location', 'priority', 'completed_at', 'completed_by', 'is_deleted', 'created_by', 'modified_by', 'created_at', 'updated_at'] }
+            { name: 'tasks', cols: ['id', 'title', 'description', 'assigned_to', 'due_date', 'task_type', 'status', 'location', 'priority', 'completed_at', 'completed_by', 'is_deleted', 'created_by', 'modified_by', 'created_at', 'updated_at'] },
+            { name: 'maintenance_tickets', cols: ['id', 'title', 'description', 'category', 'status', 'priority', 'location', 'equipment_tag', 'assigned_to', 'reported_by', 'is_deleted', 'created_by', 'modified_by', 'created_at', 'updated_at'] }
           ];
 
           for (const table of tablesToPull) {
