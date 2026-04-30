@@ -8,7 +8,6 @@ import { zodValidator } from '@tanstack/zod-form-adapter';
 import { z } from 'zod';
 import { Loader2, Plus, CheckCircle, Circle, Clock, User, X, Save, ClipboardList, Wrench, Stethoscope, MapPin, AlertTriangle, Edit2, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { TaskSeeder } from '../admin/components/TaskSeeder';
 
 const taskSchema = z.object({
   title: z.string().min(1, "Title is required"),
@@ -204,7 +203,7 @@ export function TasksView() {
       await db.query(`UPDATE tasks SET is_deleted = true, modified_by = $1, updated_at = now() WHERE id = $2`, [uId, id]);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['tasks'] }),
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
       toast.success('Task permanently deleted');
     },
     onError: (err: any) => toast.error(`Failed to delete task: ${err.message}`)
@@ -260,74 +259,76 @@ export function TasksView() {
       </div>
 
       <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-        <table className="w-full text-left border-collapse min-w-[900px]">
-          <thead>
-            <tr className="bg-slate-50 border-b border-slate-200">
-              <th className="px-4 py-3 w-12"></th>
-              <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Task Details</th>
-              <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest w-32">Priority</th>
-              <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest w-32">Type</th>
-              <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest w-36">Due Date</th>
-              <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest w-32">Assigned To</th>
-              <th className="px-4 py-3 w-20"></th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {filteredTasks.length === 0 ? (
-              <tr><td colSpan={7} className="px-4 py-12 text-center text-slate-400 font-bold uppercase tracking-widest text-xs">No {activeTab.toLowerCase()} tasks found</td></tr>
-            ) : (
-              filteredTasks.map((task: any) => (
-                <tr key={task.id} className={`group hover:bg-slate-50 transition-colors ${task.status === 'COMPLETED' ? 'opacity-60' : ''}`}>
-                  <td className="px-4 py-3 text-center">
-                    <button 
-                      onClick={() => toggleTaskMutation.mutate({ id: task.id, newStatus: task.status === 'PENDING' ? 'COMPLETED' : 'PENDING' })}
-                      className={`p-0.5 rounded-full transition-colors ${task.status === 'COMPLETED' ? 'text-emerald-500 hover:text-slate-400' : 'text-slate-300 hover:text-emerald-500'}`}
-                    >
-                      {task.status === 'COMPLETED' ? <CheckCircle size={22} /> : <Circle size={22} />}
-                    </button>
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex flex-col gap-1">
-                       <p className={`font-bold text-sm ${task.status === 'COMPLETED' ? 'line-through text-slate-500' : 'text-slate-800'}`}>{task.title}</p>
-                       {task.location && <span className="flex items-center gap-1 text-[10px] font-black text-slate-400 uppercase tracking-widest"><MapPin size={10}/> {task.location}</span>}
-                    </div>
-                  </td>
-                  <td className="px-4 py-3">
-                     <span className={`flex items-center gap-1.5 px-2 py-1 border rounded-md text-[9px] font-black uppercase tracking-widest w-fit ${getPriorityColor(task.priority)}`}>
-                        {task.priority === 'URGENT' && <AlertTriangle size={10} />}
-                        {task.priority}
-                     </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className="flex items-center gap-1.5 px-2 py-1 bg-slate-100 border border-slate-200 text-slate-600 rounded-md text-[9px] font-black uppercase tracking-widest w-fit">
-                      {getTypeIcon(task.task_type)} {task.task_type}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    {task.due_date ? (
-                      <span className={`text-xs font-bold flex items-center gap-1.5 ${new Date(task.due_date) < new Date() && task.status === 'PENDING' ? 'text-rose-600' : 'text-slate-600'}`}>
-                        <Clock size={12}/> {new Date(task.due_date).toLocaleDateString()}
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse min-w-[900px]">
+            <thead>
+              <tr className="bg-slate-50 border-b border-slate-200">
+                <th className="px-4 py-3 w-12"></th>
+                <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Task Details</th>
+                <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest w-32">Priority</th>
+                <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest w-32">Type</th>
+                <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest w-36">Due Date</th>
+                <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest w-32">Assigned To</th>
+                <th className="px-4 py-3 w-20"></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {filteredTasks.length === 0 ? (
+                <tr><td colSpan={7} className="px-4 py-12 text-center text-slate-400 font-bold uppercase tracking-widest text-xs">No {activeTab.toLowerCase()} tasks found</td></tr>
+              ) : (
+                filteredTasks.map((task: any) => (
+                  <tr key={task.id} className={`group hover:bg-slate-50 transition-colors ${task.status === 'COMPLETED' ? 'opacity-60' : ''}`}>
+                    <td className="px-4 py-3 text-center">
+                      <button 
+                        onClick={() => toggleTaskMutation.mutate({ id: task.id, newStatus: task.status === 'PENDING' ? 'COMPLETED' : 'PENDING' })}
+                        className={`p-0.5 rounded-full transition-colors ${task.status === 'COMPLETED' ? 'text-emerald-500 hover:text-slate-400' : 'text-slate-300 hover:text-emerald-500'}`}
+                      >
+                        {task.status === 'COMPLETED' ? <CheckCircle size={22} /> : <Circle size={22} />}
+                      </button>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-col gap-1">
+                        <p className={`font-bold text-sm ${task.status === 'COMPLETED' ? 'line-through text-slate-500' : 'text-slate-800'}`}>{task.title}</p>
+                        {task.location && <span className="flex items-center gap-1 text-[10px] font-black text-slate-400 uppercase tracking-widest"><MapPin size={10}/> {task.location}</span>}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={`flex items-center gap-1.5 px-2 py-1 border rounded-md text-[9px] font-black uppercase tracking-widest w-fit ${getPriorityColor(task.priority)}`}>
+                          {task.priority === 'URGENT' && <AlertTriangle size={10} />}
+                          {task.priority}
                       </span>
-                    ) : <span className="text-xs text-slate-400 font-medium">-</span>}
-                  </td>
-                  <td className="px-4 py-3">
-                    {task.assigned_to ? (
-                      <span className="flex items-center gap-1.5 text-xs font-bold text-slate-600 bg-emerald-50 text-emerald-700 px-2 py-1 rounded-md w-fit border border-emerald-100">
-                        <User size={12}/> {task.assigned_initials || '??'}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="flex items-center gap-1.5 px-2 py-1 bg-slate-100 border border-slate-200 text-slate-600 rounded-md text-[9px] font-black uppercase tracking-widest w-fit">
+                        {getTypeIcon(task.task_type)} {task.task_type}
                       </span>
-                    ) : <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Unassigned</span>}
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                       <button onClick={() => handleEdit(task)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Edit Task"><Edit2 size={16} /></button>
-                       <button onClick={() => handleDelete(task.id)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Delete Task"><Trash2 size={16} /></button>
-                    </div>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+                    </td>
+                    <td className="px-4 py-3">
+                      {task.due_date ? (
+                        <span className={`text-xs font-bold flex items-center gap-1.5 ${new Date(task.due_date) < new Date() && task.status === 'PENDING' ? 'text-rose-600' : 'text-slate-600'}`}>
+                          <Clock size={12}/> {new Date(task.due_date).toLocaleDateString()}
+                        </span>
+                      ) : <span className="text-xs text-slate-400 font-medium">-</span>}
+                    </td>
+                    <td className="px-4 py-3">
+                      {task.assigned_to ? (
+                        <span className="flex items-center gap-1.5 text-xs font-bold text-slate-600 bg-emerald-50 text-emerald-700 px-2 py-1 rounded-md w-fit border border-emerald-100">
+                          <User size={12}/> {task.assigned_initials || '??'}
+                        </span>
+                      ) : <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Unassigned</span>}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onClick={() => handleEdit(task)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Edit Task"><Edit2 size={16} /></button>
+                        <button onClick={() => handleDelete(task.id)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Delete Task"><Trash2 size={16} /></button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
       
       <TaskModal isOpen={isModalOpen} onClose={() => { setIsModalOpen(false); setTaskToEdit(null); }} users={data?.users || []} editTask={taskToEdit} />

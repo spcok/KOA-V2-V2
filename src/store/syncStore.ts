@@ -81,7 +81,7 @@ export const useSyncStore = create<SyncState>()(
             { name: 'daily_logs', cols: ['id', 'animal_id', 'log_type', 'log_date', 'notes', 'weight_grams', 'weight_unit', 'basking_temp_c', 'cool_temp_c', 'temperature_c', 'food', 'quantity', 'feed_time', 'feed_method', 'cast_status', 'misted', 'water', 'is_deleted', 'created_by', 'modified_by', 'created_at', 'updated_at'] },
             { name: 'feeding_schedules', cols: ['id', 'animal_id', 'scheduled_date', 'food_type', 'quantity', 'calci_dust', 'additional_notes', 'is_completed', 'completed_at', 'completed_by', 'is_deleted', 'created_by', 'modified_by', 'created_at', 'updated_at'] },
             { name: 'daily_rounds', cols: ['id', 'animal_id', 'date', 'shift', 'section', 'is_alive', 'water_checked', 'locks_secured', 'animal_issue_note', 'general_section_note', 'completed_by', 'completed_at', 'is_deleted', 'created_by', 'modified_by', 'created_at', 'updated_at'] },
-            { name: 'tasks', cols: ['id', 'title', 'description', 'assigned_to', 'due_date', 'task_type', 'status', 'completed_at', 'completed_by', 'is_deleted', 'created_by', 'modified_by', 'created_at', 'updated_at'] }
+            { name: 'tasks', cols: ['id', 'title', 'description', 'assigned_to', 'due_date', 'task_type', 'status', 'location', 'priority', 'completed_at', 'completed_by', 'is_deleted', 'created_by', 'modified_by', 'created_at', 'updated_at'] }
           ];
 
           for (const table of tablesToPull) {
