@@ -106,7 +106,6 @@ export function FeedingScheduleView() {
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries(); 
-      useSyncStore.getState().pushToCloud().catch(console.error);
       cancelEdit();
     },
     onError: (err) => alert(`Save failed: ${err.message}`)
@@ -121,7 +120,6 @@ export function FeedingScheduleView() {
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries();
-      useSyncStore.getState().pushToCloud().catch(console.error);
     }
   });
 
@@ -131,7 +129,6 @@ export function FeedingScheduleView() {
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries(); 
-      useSyncStore.getState().pushToCloud().catch(console.error);
     },
     onError: (err) => alert(`Delete failed: ${err.message}`)
   });

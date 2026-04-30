@@ -1,5 +1,6 @@
 import { createRootRouteWithContext, Outlet, useLocation, Link, redirect } from '@tanstack/react-router';
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { Toaster } from 'react-hot-toast';
 import { initDb } from '../lib/db';
 import { useSyncStore } from '../store/syncStore';
 import { useAuthStore } from '../store/authStore';
@@ -20,7 +21,7 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
 function RootComponent() {
   const location = useLocation();
   const { session } = Route.useRouteContext().auth;
-  const { pullFromCloud } = useSyncStore();
+  const { pullFromCloud, startBackgroundWorker } = useSyncStore();
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
   useEffect(() => {
@@ -30,8 +31,9 @@ function RootComponent() {
   useEffect(() => {
     if (session) {
       pullFromCloud().catch(console.error);
+      startBackgroundWorker();
     }
-  }, [session, pullFromCloud]);
+  }, [session, pullFromCloud, startBackgroundWorker]);
 
   if (location.pathname === '/login') {
     return <Outlet />;
@@ -64,6 +66,8 @@ function RootComponent() {
 
   return (
     <div className="flex h-screen w-full bg-[#171f30] font-sans text-slate-300 overflow-hidden">
+      <Toaster position="top-center" toastOptions={{ className: 'text-sm font-bold shadow-xl border border-slate-100', style: { borderRadius: '12px', background: '#fff', color: '#1e293b' } }} />
+      
       <aside className={`${isSidebarOpen ? 'w-64' : 'w-20'} flex-shrink-0 flex flex-col border-r border-slate-800/50 transition-all duration-300 ease-in-out z-20 bg-[#171f30]`}>
         <div className="flex items-center justify-center h-16 px-4 bg-[#0f172a] shrink-0">
           {isSidebarOpen ? <h1 className="text-xl font-bold tracking-tight text-white truncate w-full text-center transition-opacity duration-300">KOA Manager</h1> : <h1 className="text-xl font-bold tracking-tight text-emerald-500 transition-opacity duration-300">KM</h1>}
@@ -82,7 +86,7 @@ function RootComponent() {
             <div className="px-3 space-y-1">
               <ActiveLink to="/daily-logs" label="Daily Logs" icon={Icons.logs} />
               <ActiveLink to="/daily-rounds" label="Daily Rounds" icon={Icons.logs} />
-              <InactiveItem label="Tasks" icon={Icons.logs} />
+              <ActiveLink to="/tasks" label="Tasks" icon={Icons.logs} />
               <ActiveLink to="/feeding-schedules" label="Feeding Schedule" icon={Icons.logs} />
             </div>
           </div>

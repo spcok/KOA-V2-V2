@@ -4,7 +4,8 @@ import { db } from '../../../lib/db';
 import { queryClient } from '../../../lib/queryClient';
 import { useSyncStore } from '../../../store/syncStore';
 import { useAuthStore } from '../../../store/authStore';
-import { Loader2, ClipboardList, Plus, Calendar, Clock, X, Save } from 'lucide-react';
+import { Loader2, ClipboardList, Plus, Calendar, Clock, X, Save, Trash2 } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 const LOG_TYPES = ['ALL', 'FEED', 'WEIGHT', 'TEMPERATURE', 'EVENTS', 'TRAINING', 'FLYING', 'GENERAL'];
 
@@ -50,10 +51,10 @@ function AddProfileLogModal({ animalId, isOpen, onClose }: { animalId: string, i
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['daily_logs', 'animal', animalId] });
-      useSyncStore.getState().pushToCloud().catch(console.error);
+      toast.success('Husbandry log added successfully');
       onClose();
     },
-    onError: (err: any) => alert(`Failed to save log: ${err.message}`)
+    onError: (err: any) => toast.error(`Failed to save log: ${err.message}`)
   });
 
   if (!isOpen) return null;
@@ -122,11 +123,11 @@ function AddProfileLogModal({ animalId, isOpen, onClose }: { animalId: string, i
 export function HusbandryLogsTab({ animalId }: { animalId: string }) {
   const [activeFilter, setActiveFilter] = useState('ALL');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const currentUserId = useAuthStore(s => s.session?.user?.id);
 
   const { data: logs = [], isLoading } = useQuery({
     queryKey: ['daily_logs', 'animal', animalId],
     queryFn: async () => {
-      // Memory JOIN to retrieve user initials based on modified_by
       const res = await db.query(
         `SELECT d.*, u.initials as user_initials 
          FROM daily_logs d 
@@ -138,6 +139,27 @@ export function HusbandryLogsTab({ animalId }: { animalId: string }) {
       return res.rows;
     }
   });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (logId: string) => {
+      const uId = currentUserId || null;
+      await db.query(
+        `UPDATE daily_logs SET is_deleted = true, modified_by = $1, updated_at = now() WHERE id = $2`,
+        [uId, logId]
+      );
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['daily_logs', 'animal', animalId] });
+      toast.success('Log successfully voided.');
+    },
+    onError: (err: any) => toast.error(`Failed to void log: ${err.message}`)
+  });
+
+  const handleDelete = (id: string) => {
+    if (window.confirm("Are you sure you want to void this log? This cannot be undone.")) {
+      deleteMutation.mutate(id);
+    }
+  };
 
   const getTypeColor = (type: string) => {
     switch(type.toUpperCase()) {
@@ -153,11 +175,29 @@ export function HusbandryLogsTab({ animalId }: { animalId: string }) {
 
   const formatMetrics = (log: any) => {
     const parts = [];
-    if (log.log_type === 'WEIGHT' && log.weight_grams !== null) parts.push(`Wt: ${log.weight_grams}${log.weight_unit || 'g'}`);
-    if (log.log_type === 'FEED' && log.food) parts.push(`Fed: ${log.quantity ? log.quantity + 'x ' : ''}${log.food}`);
-    if (log.log_type === 'TEMPERATURE') {
-      if (log.temperature_c !== null) parts.push(`Ambient: ${log.temperature_c}°C`);
-      if (log.basking_temp_c !== null) parts.push(`Basking: ${log.basking_temp_c}°C`);
+    const logType = String(log.log_type).toUpperCase();
+    
+    const parseNum = (val: any) => {
+        if (val === null || val === undefined || val === '') return null;
+        const n = Number(val);
+        return (isNaN(n) || n === -1) ? null : n;
+    };
+
+    if (logType === 'WEIGHT') {
+        const wt = parseNum(log.weight_grams);
+        if (wt !== null) parts.push(`Wt: ${wt}${log.weight_unit || 'g'}`);
+    }
+    if (logType === 'FEED') {
+        if (log.food && log.food !== 'N/A' && log.food !== 'NONE') {
+            const qty = parseNum(log.quantity);
+            parts.push(`Fed: ${qty !== null ? qty + 'x ' : ''}${log.food}`);
+        }
+    }
+    if (logType === 'TEMPERATURE') {
+        const tc = parseNum(log.temperature_c);
+        const btc = parseNum(log.basking_temp_c);
+        if (tc !== null) parts.push(`Ambient: ${tc}°C`);
+        if (btc !== null) parts.push(`Basking: ${btc}°C`);
     }
     return parts.length > 0 ? parts.join(' | ') : '-';
   };
@@ -202,12 +242,13 @@ export function HusbandryLogsTab({ animalId }: { animalId: string }) {
                 <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest w-28">Type</th>
                 <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest w-1/3">Metrics</th>
                 <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest w-1/4">Notes</th>
+                <th className="px-4 py-3 w-10"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filteredLogs.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-slate-400 font-medium text-sm">
+                  <td colSpan={7} className="px-4 py-8 text-center text-slate-400 font-medium text-sm">
                     No logs found for this filter.
                   </td>
                 </tr>
@@ -236,6 +277,15 @@ export function HusbandryLogsTab({ animalId }: { animalId: string }) {
                       </td>
                       <td className="px-4 py-3 max-w-[200px] truncate hover:whitespace-normal hover:break-words">
                         <p className="text-xs font-medium text-slate-600">{log.notes || '-'}</p>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <button 
+                          onClick={() => handleDelete(log.id)}
+                          className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                          title="Void Log"
+                        >
+                          <Trash2 size={16} />
+                        </button>
                       </td>
                     </tr>
                   )

@@ -34,7 +34,6 @@ export function AnimalProfileView({ animalId, onBack }: { animalId: string, onBa
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['animal', animalId] });
-      useSyncStore.getState().pushToCloud().catch(console.error);
     }
   });
 

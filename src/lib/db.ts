@@ -137,9 +137,26 @@ export const initDb = async () => {
         created_at timestamp with time zone NOT NULL DEFAULT now(),
         updated_at timestamp with time zone NOT NULL DEFAULT now()
       );
+
+      CREATE TABLE IF NOT EXISTS tasks (
+          id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+          title text NOT NULL,
+          description text,
+          assigned_to uuid,
+          due_date date,
+          task_type text DEFAULT 'GENERAL',
+          status text DEFAULT 'PENDING',
+          completed_at timestamp with time zone,
+          completed_by uuid,
+          is_deleted boolean NOT NULL DEFAULT false,
+          created_by uuid,
+          modified_by uuid,
+          created_at timestamp with time zone DEFAULT now(),
+          updated_at timestamp with time zone DEFAULT now()
+      );
     `);
     
-    await db.query('INSERT INTO schema_migrations (version) VALUES (1)');
+    await db.query('INSERT INTO schema_migrations (version) VALUES (1) ON CONFLICT (version) DO NOTHING');
     console.log('[DB Boot] Migration V1 Complete.');
   }
 
@@ -237,4 +254,26 @@ export const initDb = async () => {
   // FUTURE MIGRATIONS GO HERE (e.g., if currentVersion < 5)
   // ==========================================
 
+    // --- PHASE 30.2: FORCE SCHEMA UPDATE FOR TASKS ---
+    // This executes unconditionally to bypass the V5 schema lock
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS tasks (
+          id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+          title text NOT NULL,
+          description text,
+          assigned_to uuid,
+          due_date date,
+          task_type text DEFAULT 'GENERAL',
+          status text DEFAULT 'PENDING',
+          completed_at timestamp with time zone,
+          completed_by uuid,
+          is_deleted boolean NOT NULL DEFAULT false,
+          created_by uuid,
+          modified_by uuid,
+          created_at timestamp with time zone DEFAULT now(),
+          updated_at timestamp with time zone DEFAULT now()
+      );
+    `);
+    console.log("[DB Boot] Tasks table schema verified and enforced.");
 };
+

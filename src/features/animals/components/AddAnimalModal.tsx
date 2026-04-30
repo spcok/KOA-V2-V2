@@ -1,11 +1,74 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useForm } from '@tanstack/react-form';
+import { zodValidator } from '@tanstack/zod-form-adapter';
+import { z } from 'zod';
 import { useMutation } from '@tanstack/react-query';
 import { db } from '../../../lib/db';
 import { queryClient } from '../../../lib/queryClient';
 import { useSyncStore } from '../../../store/syncStore';
 import { useAuthStore } from '../../../store/authStore';
 import { X, Save, Loader2, Image as ImageIcon, Map as MapIcon, Check, ZoomIn } from 'lucide-react';
+import toast from 'react-hot-toast';
 
+// --- ZOD SCHEMA DEFINITION ---
+const ZERO_UUID = '00000000-0000-0000-0000-000000000000';
+
+const animalSchema = z.object({
+  entity_type: z.enum(['INDIVIDUAL', 'MOB']).default('INDIVIDUAL'),
+  parent_mob_id: z.string().transform(val => val.trim() === '' ? ZERO_UUID : val),
+  census_count: z.preprocess(val => Number(val) || 1, z.number().min(1)),
+  name: z.string().min(1, "Name is required").transform(val => val.trim() === '' ? 'unknown' : val),
+  species: z.string().transform(val => val.trim() === '' ? 'unknown' : val),
+  latin_name: z.string().transform(val => val.trim() === '' ? 'unknown' : val),
+  category: z.string().transform(val => val.trim() === '' ? 'unknown' : val),
+  location: z.string().transform(val => val.trim() === '' ? 'unknown' : val),
+  image_url: z.string().transform(val => val.trim() === '' ? '-1' : val),
+  distribution_map_url: z.string().nullable().transform(val => val === '' ? null : val),
+  hazard_rating: z.enum(['LOW', 'MEDIUM', 'HIGH']).default('LOW'),
+  is_venomous: z.boolean().default(false),
+  weight_unit: z.enum(['g', 'kg', 'lb', 'oz']).default('g'),
+  flying_weight_g: z.preprocess(val => val === '' || val === null ? -1 : Number(val), z.number()),
+  winter_weight_g: z.preprocess(val => val === '' || val === null ? -1 : Number(val), z.number()),
+  average_target_weight: z.preprocess(val => val === '' || val === null ? -1 : Number(val), z.number()),
+  date_of_birth: z.string().transform(val => val === '' ? '1900-01-01' : val),
+  is_dob_unknown: z.boolean().default(false),
+  gender: z.string().transform(val => val.trim() === '' ? 'unknown' : val),
+  microchip_id: z.string().transform(val => val.trim() === '' ? 'unknown' : val),
+  ring_number: z.string().transform(val => val.trim() === '' ? 'unknown' : val),
+  has_no_id: z.boolean().default(false),
+  red_list_status: z.string().default('NE'),
+  description: z.string().transform(val => val.trim() === '' ? ['none'] : val.split(/\n|\\n/).map(s => s.trim()).filter(Boolean)),
+  special_requirements: z.string().transform(val => val.trim() === '' ? ['none'] : val.split(/\n|\\n/).map(s => s.trim()).filter(Boolean)),
+  critical_husbandry_notes: z.string().transform(val => val.trim() === '' ? ['none'] : val.split(/\n|\\n/).map(s => s.trim()).filter(Boolean)),
+  ambient_temp_only: z.boolean().default(false),
+  target_day_temp_c: z.preprocess(val => val === '' || val === null ? -1 : Number(val), z.number()),
+  target_night_temp_c: z.preprocess(val => val === '' || val === null ? -1 : Number(val), z.number()),
+  water_tipping_temp: z.preprocess(val => val === '' || val === null ? -1 : Number(val), z.number()),
+  target_humidity_min_percent: z.preprocess(val => val === '' || val === null ? -1 : Number(val), z.number()),
+  target_humidity_max_percent: z.preprocess(val => val === '' || val === null ? -1 : Number(val), z.number()),
+  misting_frequency: z.string().nullable().transform(val => val === '' ? null : val),
+  acquisition_date: z.string().transform(val => val === '' ? '1900-01-01' : val),
+  acquisition_type: z.string().transform(val => val.trim() === '' ? 'unknown' : val),
+  origin: z.string().transform(val => val.trim() === '' ? 'unknown' : val),
+  origin_location: z.string().transform(val => val.trim() === '' ? 'unknown' : val),
+  lineage_unknown: z.boolean().default(false),
+  sire_id: z.string().transform(val => val.trim() === '' ? ZERO_UUID : val),
+  dam_id: z.string().transform(val => val.trim() === '' ? ZERO_UUID : val),
+  is_boarding: z.boolean().default(false),
+  is_quarantine: z.boolean().default(false),
+  display_order: z.preprocess(val => Number(val) || 0, z.number())
+});
+
+const DEFAULT_VALUES = {
+  entity_type: 'INDIVIDUAL', parent_mob_id: '', census_count: 1, name: '', species: '', latin_name: '', category: 'Mammal', location: '',
+  image_url: '', distribution_map_url: '', hazard_rating: 'LOW', is_venomous: false, weight_unit: 'g', flying_weight_g: '', winter_weight_g: '', average_target_weight: '',
+  date_of_birth: '', is_dob_unknown: false, gender: 'Unknown', microchip_id: '', ring_number: '', has_no_id: false, red_list_status: 'NE',
+  description: '', special_requirements: '', critical_husbandry_notes: '', ambient_temp_only: false, target_day_temp_c: '', target_night_temp_c: '', water_tipping_temp: '', target_humidity_min_percent: '', target_humidity_max_percent: '', misting_frequency: '',
+  acquisition_date: '', acquisition_type: 'unknown', origin: '', origin_location: '', lineage_unknown: false, sire_id: '', dam_id: '',
+  is_boarding: false, is_quarantine: false, display_order: 0
+};
+
+// --- INLINE VISUAL CROPPER COMPONENT ---
 function ImageCropper({ src, aspect, onCrop, onCancel }: { src: string, aspect: number, onCrop: (b64: string) => void, onCancel: () => void }) {
   const [zoom, setZoom] = useState(1);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
@@ -69,11 +132,10 @@ function ImageCropper({ src, aspect, onCrop, onCancel }: { src: string, aspect: 
   };
 
   return (
-    <div id="image_cropper_overlay" className="fixed inset-0 bg-slate-900/95 z-[200] flex flex-col items-center justify-center p-4">
+    <div className="fixed inset-0 bg-slate-900/95 z-[200] flex flex-col items-center justify-center p-4">
       <div className="text-white text-center mb-4"><h3 className="font-black uppercase tracking-widest text-lg">Crop Image</h3><p className="text-sm opacity-70">Drag to pan. Use slider to zoom.</p></div>
       <div 
         ref={containerRef}
-        id="cropper_container"
         className="relative w-full max-w-2xl h-[50vh] bg-black overflow-hidden touch-none cursor-move rounded-xl ring-2 ring-slate-700 shadow-2xl"
         onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp}
         onTouchStart={handleMouseDown} onTouchMove={handleMouseMove} onTouchEnd={handleMouseUp}
@@ -90,32 +152,82 @@ function ImageCropper({ src, aspect, onCrop, onCancel }: { src: string, aspect: 
         <input type="range" min="1" max="3" step="0.01" value={zoom} onChange={(e) => setZoom(Number(e.target.value))} className="w-full accent-amber-500" />
       </div>
       <div className="flex gap-4 mt-6">
-        <button id="btn_cropper_cancel" onClick={onCancel} className="px-6 py-3 bg-slate-700 text-white font-bold uppercase text-xs tracking-widest rounded-xl hover:bg-slate-600">Cancel</button>
-        <button id="btn_cropper_confirm" onClick={confirmCrop} className="px-8 py-3 bg-amber-500 text-amber-950 font-black uppercase text-xs tracking-widest rounded-xl hover:bg-amber-400 flex items-center gap-2"><Check size={18}/> Confirm Crop</button>
+        <button onClick={onCancel} className="px-6 py-3 bg-slate-700 text-white font-bold uppercase text-xs tracking-widest rounded-xl hover:bg-slate-600">Cancel</button>
+        <button onClick={confirmCrop} className="px-8 py-3 bg-amber-500 text-amber-950 font-black uppercase text-xs tracking-widest rounded-xl hover:bg-amber-400 flex items-center gap-2"><Check size={18}/> Confirm Crop</button>
       </div>
     </div>
   );
 }
 
-const DEFAULT_VALUES = {
-  entity_type: 'INDIVIDUAL', parent_mob_id: '', census_count: 1, name: '', species: '', latin_name: '', category: 'Mammal', location: '',
-  image_url: '', distribution_map_url: '', hazard_rating: 'LOW', is_venomous: false, weight_unit: 'g', flying_weight_g: '', winter_weight_g: '', average_target_weight: '',
-  date_of_birth: '', is_dob_unknown: false, gender: 'Unknown', microchip_id: '', ring_number: '', has_no_id: false, red_list_status: 'NE',
-  description: '', special_requirements: '', critical_husbandry_notes: '', ambient_temp_only: false, target_day_temp_c: '', target_night_temp_c: '', water_tipping_temp: '', target_humidity_min_percent: '', target_humidity_max_percent: '', misting_frequency: '',
-  acquisition_date: '', acquisition_type: 'unknown', origin: '', origin_location: '', lineage_unknown: false, sire_id: '', dam_id: '',
-  is_boarding: false, is_quarantine: false, display_order: 0
-};
+function FormField({ form, name, label, type = 'text', options, className = "", placeholder = "" }: any) {
+  return (
+    <form.Field name={name}>
+      {(field: any) => (
+        <div className={type === 'checkbox' ? 'flex items-center gap-3' : 'w-full'}>
+          {type !== 'checkbox' && (
+            <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">
+              {label} {field.state.meta.errors.length > 0 && <span className="text-red-500 lowercase ml-2">({field.state.meta.errors.join(', ')})</span>}
+            </label>
+          )}
+          {type === 'select' ? (
+            <select value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} className={`w-full px-3 py-2 border ${field.state.meta.errors.length ? 'border-red-500 bg-red-50' : 'border-slate-200'} rounded-lg text-sm font-medium focus:outline-none focus:border-emerald-500 ${className}`}>
+              {options.map((o: any) => <option key={o.value || o} value={o.value || o}>{o.label || o}</option>)}
+            </select>
+          ) : type === 'textarea' ? (
+            <textarea value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} className={`w-full px-3 py-2 border ${field.state.meta.errors.length ? 'border-red-500 bg-red-50' : 'border-slate-200'} rounded-lg text-sm font-medium focus:outline-none focus:border-emerald-500 ${className}`} placeholder={placeholder} />
+          ) : type === 'checkbox' ? (
+            <>
+              <input type="checkbox" checked={Boolean(field.state.value)} onChange={(e) => field.handleChange(e.target.checked)} onBlur={field.handleBlur} className={`w-5 h-5 rounded border-slate-300 focus:ring-emerald-500 ${className}`} />
+              <label className="text-xs font-bold text-slate-700 uppercase tracking-widest">{label}</label>
+            </>
+          ) : (
+            <input type={type} value={field.state.value} onChange={(e) => field.handleChange(e.target.value)} onBlur={field.handleBlur} className={`w-full px-3 py-2 border ${field.state.meta.errors.length ? 'border-red-500 bg-red-50' : 'border-slate-200'} rounded-lg text-sm font-medium focus:outline-none focus:border-emerald-500 ${className}`} placeholder={placeholder} />
+          )}
+        </div>
+      )}
+    </form.Field>
+  );
+}
 
 export function AddAnimalModal({ isOpen, onClose, existingAnimalId }: { isOpen: boolean, onClose: () => void, existingAnimalId?: string }) {
-  const [formData, setFormData] = useState<any>(DEFAULT_VALUES);
   const [isFetching, setIsFetching] = useState(false);
   const [activeSection, setActiveSection] = useState<'core' | 'id' | 'env' | 'health' | 'admin'>('core');
-  
   const [cropFileSrc, setCropFileSrc] = useState<string | null>(null);
   const [cropTarget, setCropTarget] = useState<'image_url' | 'distribution_map_url' | null>(null);
   const [mapAspect, setMapAspect] = useState<number>(16/9);
 
   const currentUserId = useAuthStore(s => s.session?.user?.id);
+
+  const form = useForm({
+    defaultValues: DEFAULT_VALUES,
+    validatorAdapter: zodValidator(),
+    onSubmit: async ({ value }) => {
+      const payload: any = animalSchema.parse(value);
+      const uId = currentUserId || null;
+
+      try {
+        if (existingAnimalId) {
+          const cols = Object.keys(payload);
+          const setClause = cols.map((c, i) => `${c} = $${i + 1}`).join(', ');
+          const values = cols.map(c => payload[c]);
+          await db.query(`UPDATE animals SET ${setClause}, updated_at = now(), modified_by = $${cols.length + 1} WHERE id = $${cols.length + 2}`, [...values, uId, existingAnimalId]);
+        } else {
+          const cols = Object.keys(payload);
+          const placeholders = cols.map((_, i) => `$${i + 1}`).join(', ');
+          const values = cols.map(c => payload[c]);
+          await db.query(`INSERT INTO animals (${cols.join(', ')}, created_by, modified_by) VALUES (${placeholders}, $${cols.length + 1}, $${cols.length + 1})`, [...values, uId]);
+        }
+        
+        queryClient.invalidateQueries({ queryKey: ['animal'] });
+        queryClient.invalidateQueries({ queryKey: ['dashboardData'] });
+        toast.success('Animal profile saved!');
+        onClose();
+      } catch (err: any) {
+        console.error("Submission Error", err);
+        toast.error(`Database Error: ${err.message}`);
+      }
+    }
+  });
 
   useEffect(() => {
     if (existingAnimalId && isOpen) {
@@ -128,7 +240,6 @@ export function AddAnimalModal({ isOpen, onClose, existingAnimalId }: { isOpen: 
                 if (r[k] !== undefined && r[k] !== null) loadData[k as keyof typeof DEFAULT_VALUES] = r[k];
             });
             
-            // Revert strict defaults to UI-friendly blank states
             if (String(loadData.date_of_birth).startsWith('1900-01-01')) loadData.date_of_birth = '';
             else loadData.date_of_birth = new Date(loadData.date_of_birth).toISOString().split('T')[0];
             
@@ -149,7 +260,6 @@ export function AddAnimalModal({ isOpen, onClose, existingAnimalId }: { isOpen: 
 
             if (loadData.image_url === '-1') loadData.image_url = '';
 
-            // Array interceptor
             ['description', 'special_requirements', 'critical_husbandry_notes'].forEach(k => {
                 const val = loadData[k as keyof typeof DEFAULT_VALUES];
                 if (Array.isArray(val)) {
@@ -158,73 +268,13 @@ export function AddAnimalModal({ isOpen, onClose, existingAnimalId }: { isOpen: 
                 }
             });
 
-            setFormData(loadData);
+            form.update({ defaultValues: loadData });
+            form.reset();
         }
         setIsFetching(false);
       });
-    } else if (isOpen) {
-        setFormData(DEFAULT_VALUES);
     }
-  }, [existingAnimalId, isOpen]);
-
-  const handleInput = (field: string, value: any) => {
-      setFormData((prev: any) => ({ ...prev, [field]: value }));
-  };
-
-  const saveMutation = useMutation({
-    mutationFn: async () => {
-      const payload: any = { ...formData };
-      const ZERO_UUID = '00000000-0000-0000-0000-000000000000';
-      
-      // STRICT SCHEMA ENFORCEMENT
-      ['parent_mob_id', 'sire_id', 'dam_id'].forEach(k => {
-        if (!payload[k] || String(payload[k]).trim() === '') payload[k] = ZERO_UUID;
-      });
-
-      ['flying_weight_g', 'winter_weight_g', 'average_target_weight', 'target_day_temp_c', 'target_night_temp_c', 'water_tipping_temp', 'target_humidity_min_percent', 'target_humidity_max_percent'].forEach(k => {
-        if (payload[k] === '' || payload[k] === null || payload[k] === undefined) payload[k] = -1;
-        else payload[k] = Number(payload[k]);
-      });
-      payload.census_count = Number(payload.census_count) || 1;
-      payload.display_order = Number(payload.display_order) || 0;
-
-      ['name', 'species', 'latin_name', 'category', 'location', 'hazard_rating', 'gender', 'microchip_id', 'ring_number', 'red_list_status', 'acquisition_type', 'origin', 'origin_location'].forEach(k => {
-        if (!payload[k] || String(payload[k]).trim() === '') payload[k] = 'unknown';
-      });
-      
-      if (!payload.image_url || payload.image_url === '') payload.image_url = '-1';
-      if (!payload.distribution_map_url || payload.distribution_map_url === '') payload.distribution_map_url = null;
-      if (!payload.misting_frequency || payload.misting_frequency.trim() === '') payload.misting_frequency = null;
-
-      ['description', 'special_requirements', 'critical_husbandry_notes'].forEach(k => {
-        if (!payload[k] || String(payload[k]).trim() === '') payload[k] = ['none'];
-        else if (typeof payload[k] === 'string') payload[k] = payload[k].split(/\n|\\n/).map((s: string) => s.trim()).filter((s: string) => s !== '');
-      });
-
-      if (!payload.date_of_birth) payload.date_of_birth = '1900-01-01';
-      if (!payload.acquisition_date) payload.acquisition_date = '1900-01-01';
-
-      const uId = currentUserId || null;
-
-      if (existingAnimalId) {
-        const cols = Object.keys(payload);
-        const setClause = cols.map((c, i) => `${c} = $${i + 1}`).join(', ');
-        const values = cols.map(c => payload[c]);
-        await db.query(`UPDATE animals SET ${setClause}, updated_at = now(), modified_by = $${cols.length + 1} WHERE id = $${cols.length + 2}`, [...values, uId, existingAnimalId]);
-      } else {
-        const cols = Object.keys(payload);
-        const placeholders = cols.map((_, i) => `$${i + 1}`).join(', ');
-        const values = cols.map(c => payload[c]);
-        await db.query(`INSERT INTO animals (${cols.join(', ')}, created_by, modified_by) VALUES (${placeholders}, $${cols.length + 1}, $${cols.length + 1})`, [...values, uId]);
-      }
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries();
-      useSyncStore.getState().pushToCloud().catch(console.error);
-      onClose();
-    },
-    onError: (err: any) => alert(`Save Failed: ${err.message}`)
-  });
+  }, [existingAnimalId, isOpen, form]);
 
   const triggerUpload = (e: React.ChangeEvent<HTMLInputElement>, field: 'image_url' | 'distribution_map_url') => {
     const file = e.target.files?.[0];
@@ -247,18 +297,18 @@ export function AddAnimalModal({ isOpen, onClose, existingAnimalId }: { isOpen: 
         <ImageCropper 
           src={cropFileSrc} 
           aspect={cropTarget === 'image_url' ? 4/3 : mapAspect} 
-          onCrop={(b64) => { handleInput(cropTarget, b64); setCropFileSrc(null); setCropTarget(null); }}
+          onCrop={(b64) => { form.setFieldValue(cropTarget, b64); setCropFileSrc(null); setCropTarget(null); }}
           onCancel={() => { setCropFileSrc(null); setCropTarget(null); }}
         />
       )}
 
-      <div id="add_animal_modal_overlay" className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4 sm:p-6">
+      <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4 sm:p-6">
         <div className="bg-white border border-slate-200 shadow-2xl rounded-3xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
           <div className="flex justify-between items-center p-6 border-b border-slate-100 bg-slate-50/50 shrink-0">
-            <h2 id="modal_title" className="text-xl font-black tracking-tight text-slate-800 uppercase flex items-center gap-3">
+            <h2 className="text-xl font-black tracking-tight text-slate-800 uppercase flex items-center gap-3">
               {existingAnimalId ? 'Edit Animal Profile' : 'Add New Animal'}
             </h2>
-            <button id="btn_modal_close" onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full text-slate-400 transition-colors"><X size={20} /></button>
+            <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full text-slate-400 transition-colors"><X size={20} /></button>
           </div>
           
           <div className="flex border-b border-slate-200 bg-slate-50 overflow-x-auto scrollbar-hide shrink-0">
@@ -269,7 +319,7 @@ export function AddAnimalModal({ isOpen, onClose, existingAnimalId }: { isOpen: 
                { id: 'health', label: 'Health & Lineage' }, 
                { id: 'admin', label: 'Admin Status' }
              ].map(t => (
-                <button key={t.id} id={`section_tab_${t.id}`} onClick={() => setActiveSection(t.id as any)} className={`px-6 py-4 text-xs font-black uppercase tracking-widest whitespace-nowrap border-b-2 transition-colors ${activeSection === t.id ? 'border-emerald-500 text-emerald-600' : 'border-transparent text-slate-400 hover:text-slate-700'}`}>
+                <button key={t.id} onClick={() => setActiveSection(t.id as any)} className={`px-6 py-4 text-xs font-black uppercase tracking-widest whitespace-nowrap border-b-2 transition-colors ${activeSection === t.id ? 'border-emerald-500 text-emerald-600' : 'border-transparent text-slate-400 hover:text-slate-700'}`}>
                   {t.label}
                 </button>
              ))}
@@ -278,33 +328,24 @@ export function AddAnimalModal({ isOpen, onClose, existingAnimalId }: { isOpen: 
           {isFetching ? (
             <div className="p-12 flex justify-center items-center flex-1"><Loader2 size={32} className="animate-spin text-emerald-500" /></div>
           ) : (
-            <div id="modal_form_container" className="p-6 overflow-y-auto flex-1 bg-white custom-scrollbar">
+            <div className="p-6 overflow-y-auto flex-1 bg-white custom-scrollbar">
               
               <div className={activeSection === 'core' ? 'space-y-6' : 'hidden'}>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-                      <div className="lg:col-span-3"><label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Animal Name / Mob Name *</label><input type="text" value={formData.name || ''} onChange={e => handleInput('name', e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-bold bg-slate-50 text-slate-800 focus:outline-none focus:border-emerald-500" /></div>
-                      <div><label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Common Species</label><input type="text" value={formData.species || ''} onChange={e => handleInput('species', e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-medium focus:outline-none focus:border-emerald-500" /></div>
-                      <div><label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Latin Name</label><input type="text" value={formData.latin_name || ''} onChange={e => handleInput('latin_name', e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-medium italic text-slate-600 focus:outline-none focus:border-emerald-500" /></div>
-                      <div>
-                          <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Taxonomy Category</label>
-                          <select value={formData.category || 'Mammal'} onChange={e => handleInput('category', e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-medium focus:outline-none focus:border-emerald-500"><option>Mammal</option><option>Bird</option><option>Reptile</option><option>Amphibian</option><option>Invertebrate</option><option>Fish</option><option>Raptor</option><option>Owl</option><option>Exotic</option><option>Other</option></select>
-                      </div>
-                      <div>
-                          <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Gender</label>
-                          <select value={formData.gender || 'Unknown'} onChange={e => handleInput('gender', e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-medium focus:outline-none focus:border-emerald-500"><option>Unknown</option><option>Male</option><option>Female</option></select>
-                      </div>
-                      <div><label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Date of Birth</label><input type="date" value={formData.date_of_birth || ''} onChange={e => handleInput('date_of_birth', e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-medium focus:outline-none focus:border-emerald-500" /></div>
-                      <div className="flex items-center gap-3 pt-6"><input type="checkbox" checked={formData.is_dob_unknown} onChange={e => handleInput('is_dob_unknown', e.target.checked)} className="w-5 h-5 rounded border-slate-300 text-emerald-500 focus:ring-emerald-500" /><label className="text-xs font-bold text-slate-700 uppercase tracking-widest">DOB is an Estimate</label></div>
+                      <div className="lg:col-span-3"><FormField form={form} name="name" label="Animal Name / Mob Name *" className="bg-slate-50 font-bold text-slate-800 p-3" /></div>
+                      <FormField form={form} name="species" label="Common Species" />
+                      <FormField form={form} name="latin_name" label="Latin Name" className="italic text-slate-600" />
+                      <FormField form={form} name="category" label="Taxonomy Category" type="select" options={['Mammal', 'Bird', 'Reptile', 'Amphibian', 'Invertebrate', 'Fish', 'Raptor', 'Owl', 'Exotic', 'Other']} />
+                      <FormField form={form} name="gender" label="Gender" type="select" options={['Unknown', 'Male', 'Female']} />
+                      <FormField form={form} name="date_of_birth" label="Date of Birth" type="date" />
+                      <div className="pt-6"><FormField form={form} name="is_dob_unknown" label="DOB is an Estimate" type="checkbox" className="text-emerald-500" /></div>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-4">
-                      <div className="col-span-1 md:col-span-2"><label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">General Description</label><textarea value={formData.description || ''} onChange={e => handleInput('description', e.target.value)} className="w-full h-24 px-3 py-2 border border-slate-200 rounded-lg text-sm font-medium focus:outline-none focus:border-emerald-500" /></div>
-                      <div><label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Origin Entity (e.g., Zoo Name)</label><input type="text" value={formData.origin || ''} onChange={e => handleInput('origin', e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-medium focus:outline-none focus:border-emerald-500" /></div>
-                      <div><label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Origin Location (City/Country)</label><input type="text" value={formData.origin_location || ''} onChange={e => handleInput('origin_location', e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-medium focus:outline-none focus:border-emerald-500" /></div>
-                      <div><label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Acquisition Date</label><input type="date" value={formData.acquisition_date || ''} onChange={e => handleInput('acquisition_date', e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-medium focus:outline-none focus:border-emerald-500" /></div>
-                      <div>
-                          <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Acquisition Type</label>
-                          <select value={formData.acquisition_type || 'unknown'} onChange={e => handleInput('acquisition_type', e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-medium focus:outline-none focus:border-emerald-500"><option value="DONATION">Donation</option><option value="PURCHASE">Purchase</option><option value="BREEDING">Internal Breeding</option><option value="RESCUE">Rescue/Confiscation</option><option value="LOAN">Loan</option><option value="unknown">Unknown</option></select>
-                      </div>
+                      <div className="col-span-1 md:col-span-2"><FormField form={form} name="description" label="General Description" type="textarea" className="h-24" /></div>
+                      <FormField form={form} name="origin" label="Origin Entity (e.g., Zoo Name)" />
+                      <FormField form={form} name="origin_location" label="Origin Location (City/Country)" />
+                      <FormField form={form} name="acquisition_date" label="Acquisition Date" type="date" />
+                      <FormField form={form} name="acquisition_type" label="Acquisition Type" type="select" options={[{value:'DONATION', label:'Donation'}, {value:'PURCHASE', label:'Purchase'}, {value:'BREEDING', label:'Internal Breeding'}, {value:'RESCUE', label:'Rescue/Confiscation'}, {value:'LOAN', label:'Loan'}, {value:'unknown', label:'Unknown'}]} />
                   </div>
               </div>
 
@@ -313,10 +354,14 @@ export function AddAnimalModal({ isOpen, onClose, existingAnimalId }: { isOpen: 
                       <div>
                           <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Profile Photo (4:3 Crop)</label>
                           <label className="flex flex-col items-center justify-center h-32 w-full bg-white border-2 border-dashed border-slate-300 rounded-xl cursor-pointer hover:border-emerald-400 transition-colors relative overflow-hidden group">
-                              {formData.image_url && formData.image_url !== '-1' ? (
-                                <img src={formData.image_url} alt="Preview" className="absolute inset-0 w-full h-full object-cover opacity-50 group-hover:opacity-20 transition-opacity" />
-                              ) : <ImageIcon size={24} className="text-slate-400 mb-2"/>}
-                              <span className="text-xs font-bold text-slate-800 z-10 bg-white/80 px-3 py-1 rounded-full backdrop-blur-sm shadow-sm">{formData.image_url && formData.image_url !== '-1' ? 'Replace Photo' : 'Select Photo'}</span>
+                              <form.Field name="image_url">{({ state }) => (
+                                <>
+                                  {state.value && state.value !== '-1' ? (
+                                    <img src={state.value} alt="Preview" className="absolute inset-0 w-full h-full object-cover opacity-50 group-hover:opacity-20 transition-opacity" />
+                                  ) : <ImageIcon size={24} className="text-slate-400 mb-2"/>}
+                                  <span className="text-xs font-bold text-slate-800 z-10 bg-white/80 px-3 py-1 rounded-full backdrop-blur-sm shadow-sm">{state.value && state.value !== '-1' ? 'Replace Photo' : 'Select Photo'}</span>
+                                </>
+                              )}</form.Field>
                               <input type="file" accept="image/*" className="hidden" onChange={e => triggerUpload(e, 'image_url')} />
                           </label>
                       </div>
@@ -326,87 +371,96 @@ export function AddAnimalModal({ isOpen, onClose, existingAnimalId }: { isOpen: 
                              <select value={mapAspect} onChange={e => setMapAspect(Number(e.target.value))} className="bg-transparent text-emerald-600 focus:outline-none"><option value={16/9}>16:9 Horizontal</option><option value={9/16}>9:16 Vertical</option><option value={1}>1:1 Square</option></select>
                           </label>
                           <label className="flex flex-col items-center justify-center h-32 w-full bg-white border-2 border-dashed border-slate-300 rounded-xl cursor-pointer hover:border-emerald-400 transition-colors relative overflow-hidden group">
-                              {formData.distribution_map_url && formData.distribution_map_url !== '-1' ? (
-                                <img src={formData.distribution_map_url} alt="Preview" className="absolute inset-0 w-full h-full object-contain opacity-50 group-hover:opacity-20 transition-opacity" />
-                              ) : <MapIcon size={24} className="text-slate-400 mb-2"/>}
-                              <span className="text-xs font-bold text-slate-800 z-10 bg-white/80 px-3 py-1 rounded-full backdrop-blur-sm shadow-sm">{formData.distribution_map_url && formData.distribution_map_url !== '-1' ? 'Replace Map' : 'Select Map'}</span>
+                              <form.Field name="distribution_map_url">{({ state }) => (
+                                <>
+                                  {state.value && state.value !== null ? (
+                                    <img src={state.value} alt="Preview" className="absolute inset-0 w-full h-full object-contain opacity-50 group-hover:opacity-20 transition-opacity" />
+                                  ) : <MapIcon size={24} className="text-slate-400 mb-2"/>}
+                                  <span className="text-xs font-bold text-slate-800 z-10 bg-white/80 px-3 py-1 rounded-full backdrop-blur-sm shadow-sm">{state.value && state.value !== null ? 'Replace Map' : 'Select Map'}</span>
+                                </>
+                              )}</form.Field>
                               <input type="file" accept="image/*" className="hidden" onChange={e => triggerUpload(e, 'distribution_map_url')} />
                           </label>
                       </div>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-                      <div><label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Current Location (Enclosure)</label><input type="text" value={formData.location || ''} onChange={e => handleInput('location', e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-bold uppercase tracking-widest focus:outline-none focus:border-emerald-500" /></div>
-                      <div><label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Microchip ID</label><input type="text" value={formData.microchip_id || ''} onChange={e => handleInput('microchip_id', e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-mono focus:outline-none focus:border-emerald-500" /></div>
-                      <div><label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Ring Number</label><input type="text" value={formData.ring_number || ''} onChange={e => handleInput('ring_number', e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-mono focus:outline-none focus:border-emerald-500" /></div>
-                      <div className="flex items-center gap-3 pt-6"><input type="checkbox" checked={formData.has_no_id} onChange={e => handleInput('has_no_id', e.target.checked)} className="w-5 h-5 rounded border-slate-300 text-emerald-500 focus:ring-emerald-500" /><label className="text-xs font-bold text-slate-700 uppercase tracking-widest">No ID Elements (Too Small/Wild)</label></div>
+                      <FormField form={form} name="location" label="Current Location (Enclosure)" className="font-bold uppercase tracking-widest" />
+                      <FormField form={form} name="microchip_id" label="Microchip ID" className="font-mono text-sm" />
+                      <FormField form={form} name="ring_number" label="Ring Number" className="font-mono text-sm" />
+                      <div className="pt-6"><FormField form={form} name="has_no_id" label="No ID Elements (Too Small/Wild)" type="checkbox" className="text-emerald-500" /></div>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 border-t border-slate-100 pt-6">
                       <div className="col-span-3"><h3 className="text-xs font-black text-slate-800 uppercase tracking-widest">Herd / Mob Management</h3></div>
-                      <div><label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Entity Type</label><select value={formData.entity_type || 'INDIVIDUAL'} onChange={e => handleInput('entity_type', e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-medium focus:outline-none focus:border-emerald-500"><option value="INDIVIDUAL">Individual Animal</option><option value="MOB">Mob/Herd (Parent)</option></select></div>
-                      {formData.entity_type === 'MOB' ? (
-                          <div><label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Census Count</label><input type="number" value={formData.census_count || ''} onChange={e => handleInput('census_count', e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-medium focus:outline-none focus:border-emerald-500" /></div>
-                      ) : (
-                          <div><label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Parent Mob UUID (Optional)</label><input type="text" placeholder="Paste Mob UUID..." value={formData.parent_mob_id || ''} onChange={e => handleInput('parent_mob_id', e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-mono focus:outline-none focus:border-emerald-500" /></div>
-                      )}
+                      <FormField form={form} name="entity_type" label="Entity Type" type="select" options={[{value:'INDIVIDUAL', label:'Individual Animal'}, {value:'MOB', label:'Mob/Herd (Parent)'}]} />
+                      <form.Field name="entity_type">
+                        {({ state }) => state.value === 'MOB' ? (
+                          <FormField form={form} name="census_count" label="Census Count" type="number" />
+                        ) : (
+                          <FormField form={form} name="parent_mob_id" label="Parent Mob UUID (Optional)" placeholder="Paste Mob UUID..." className="font-mono text-xs" />
+                        )}
+                      </form.Field>
                   </div>
               </div>
 
               <div className={activeSection === 'env' ? 'space-y-6' : 'hidden'}>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
                       <div className="col-span-3"><h3 className="text-xs font-black text-slate-800 uppercase tracking-widest">Weight Data</h3></div>
-                      <div>
-                          <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Unit</label>
-                          <select value={formData.weight_unit || 'g'} onChange={e => handleInput('weight_unit', e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-medium focus:outline-none focus:border-emerald-500">
-                             <option value="g">Grams (g)</option><option value="kg">Kilograms (kg)</option><option value="lb">Pounds (lb)</option><option value="oz">Ounces (oz)</option>
-                          </select>
-                      </div>
-                      <div><label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Target / Flying Weight</label><input type="number" value={formData.flying_weight_g || ''} onChange={e => handleInput('flying_weight_g', e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-medium focus:outline-none focus:border-emerald-500" /></div>
-                      <div><label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Winter Target Weight</label><input type="number" value={formData.winter_weight_g || ''} onChange={e => handleInput('winter_weight_g', e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-medium focus:outline-none focus:border-emerald-500" /></div>
+                      <FormField form={form} name="weight_unit" label="Unit" type="select" options={[{value:'g', label:'Grams (g)'}, {value:'kg', label:'Kilograms (kg)'}, {value:'lb', label:'Pounds (lb)'}, {value:'oz', label:'Ounces (oz)'}]} />
+                      <FormField form={form} name="flying_weight_g" label="Target / Flying Weight" type="number" />
+                      <FormField form={form} name="winter_weight_g" label="Winter Target Weight" type="number" />
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 border-t border-slate-100 pt-6">
-                      <div className="col-span-full"><h3 className="text-xs font-black text-slate-800 uppercase tracking-widest flex items-center justify-between">Climate Parameters <div className="flex items-center gap-2"><input type="checkbox" checked={formData.ambient_temp_only} onChange={e => handleInput('ambient_temp_only', e.target.checked)} className="w-4 h-4 rounded focus:ring-emerald-500" /><span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Ambient Temp Only</span></div></h3></div>
-                      <div><label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Day Temp (°C)</label><input type="number" value={formData.target_day_temp_c || ''} onChange={e => handleInput('target_day_temp_c', e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-medium focus:outline-none focus:border-emerald-500" /></div>
-                      <div><label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Night Temp (°C)</label><input type="number" value={formData.target_night_temp_c || ''} onChange={e => handleInput('target_night_temp_c', e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-medium focus:outline-none focus:border-emerald-500" /></div>
-                      <div><label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Min Humidity (%)</label><input type="number" value={formData.target_humidity_min_percent || ''} onChange={e => handleInput('target_humidity_min_percent', e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-medium focus:outline-none focus:border-emerald-500" /></div>
-                      <div><label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Max Humidity (%)</label><input type="number" value={formData.target_humidity_max_percent || ''} onChange={e => handleInput('target_humidity_max_percent', e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-medium focus:outline-none focus:border-emerald-500" /></div>
-                      <div><label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Water Tipping (°C)</label><input type="number" value={formData.water_tipping_temp || ''} onChange={e => handleInput('water_tipping_temp', e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-medium focus:outline-none focus:border-emerald-500" /></div>
-                      <div className="col-span-full"><label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Misting Frequency (Text)</label><input type="text" placeholder="e.g. Twice Daily" value={formData.misting_frequency || ''} onChange={e => handleInput('misting_frequency', e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-medium focus:outline-none focus:border-emerald-500" /></div>
+                      <div className="col-span-full"><h3 className="text-xs font-black text-slate-800 uppercase tracking-widest flex items-center justify-between">Climate Parameters <div className="mt-2"><FormField form={form} name="ambient_temp_only" label="Ambient Temp Only" type="checkbox" /></div></h3></div>
+                      <FormField form={form} name="target_day_temp_c" label="Day Temp (°C)" type="number" />
+                      <FormField form={form} name="target_night_temp_c" label="Night Temp (°C)" type="number" />
+                      <FormField form={form} name="target_humidity_min_percent" label="Min Humidity (%)" type="number" />
+                      <FormField form={form} name="target_humidity_max_percent" label="Max Humidity (%)" type="number" />
+                      <FormField form={form} name="water_tipping_temp" label="Water Tipping (°C)" type="number" />
+                      <div className="col-span-full"><FormField form={form} name="misting_frequency" label="Misting Frequency (Text)" placeholder="e.g. Twice Daily" /></div>
                   </div>
               </div>
 
               <div className={activeSection === 'health' ? 'space-y-6' : 'hidden'}>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 bg-red-50 p-6 rounded-2xl border border-red-200">
-                      <div><label className="block text-[10px] font-black text-red-700 uppercase tracking-widest mb-1">Hazard Rating</label><select value={formData.hazard_rating || 'LOW'} onChange={e => handleInput('hazard_rating', e.target.value)} className="w-full px-3 py-2 border border-red-200 rounded-lg text-sm font-bold text-red-900 focus:outline-none focus:border-red-500"><option>LOW</option><option>MEDIUM</option><option>HIGH</option></select></div>
-                      <div className="flex items-center gap-3 pt-6"><input type="checkbox" checked={formData.is_venomous} onChange={e => handleInput('is_venomous', e.target.checked)} className="w-5 h-5 rounded border-red-300 text-red-600 focus:ring-red-500" /><label className="text-xs font-bold text-red-800 uppercase tracking-widest">Venomous Species</label></div>
-                      <div className="col-span-full"><label className="block text-[10px] font-black text-red-700 uppercase tracking-widest mb-1">Critical Husbandry Notes (Bullet points via line-breaks)</label><textarea placeholder="E.g. Requires daily misting\nAggressive during feeding" value={formData.critical_husbandry_notes || ''} onChange={e => handleInput('critical_husbandry_notes', e.target.value)} className="w-full min-h-[100px] px-3 py-2 border border-red-200 rounded-lg text-sm font-medium text-red-900 focus:outline-none focus:border-red-500" /></div>
+                      <FormField form={form} name="hazard_rating" label="Hazard Rating" type="select" options={['LOW', 'MEDIUM', 'HIGH']} className="text-red-900 font-bold" />
+                      <div className="pt-6"><FormField form={form} name="is_venomous" label="Venomous Species" type="checkbox" className="text-red-600" /></div>
+                      <div className="col-span-full"><FormField form={form} name="critical_husbandry_notes" label="Critical Husbandry Notes (Bullet points via line-breaks)" type="textarea" placeholder="E.g. Requires daily misting\nAggressive during feeding" className="min-h-[100px] text-red-900" /></div>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                      <div><label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">IUCN Red List Status</label><select value={formData.red_list_status || 'NE'} onChange={e => handleInput('red_list_status', e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-medium focus:outline-none focus:border-emerald-500"><option value="NE">Not Evaluated</option><option value="DD">Data Deficient</option><option value="LC">Least Concern</option><option value="NT">Near Threatened</option><option value="VU">Vulnerable</option><option value="EN">Endangered</option><option value="CR">Critically Endangered</option><option value="EW">Extinct in Wild</option><option value="EX">Extinct</option></select></div>
-                      <div className="col-span-full"><label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Special Requirements (Dietary/Medical)</label><textarea value={formData.special_requirements || ''} onChange={e => handleInput('special_requirements', e.target.value)} className="w-full h-24 px-3 py-2 border border-slate-200 rounded-lg text-sm font-medium focus:outline-none focus:border-emerald-500" /></div>
+                      <FormField form={form} name="red_list_status" label="IUCN Red List Status" type="select" options={[{value:'NE', label:'Not Evaluated'}, {value:'DD', label:'Data Deficient'}, {value:'LC', label:'Least Concern'}, {value:'NT', label:'Near Threatened'}, {value:'VU', label:'Vulnerable'}, {value:'EN', label:'Endangered'}, {value:'CR', label:'Critically Endangered'}, {value:'EW', label:'Extinct in Wild'}, {value:'EX', label:'Extinct'}]} />
+                      <div className="col-span-full"><FormField form={form} name="special_requirements" label="Special Requirements (Dietary/Medical)" type="textarea" className="h-24" /></div>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 border-t border-slate-100 pt-6">
-                      <div className="col-span-full"><h3 className="text-xs font-black text-slate-800 uppercase tracking-widest flex items-center justify-between">Genetics <div className="flex items-center gap-2"><input type="checkbox" checked={formData.lineage_unknown} onChange={e => handleInput('lineage_unknown', e.target.checked)} className="w-4 h-4 rounded focus:ring-emerald-500" /><span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Lineage Unknown</span></div></h3></div>
-                      <div><label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Sire UUID</label><input type="text" placeholder="UUID or empty" value={formData.sire_id || ''} onChange={e => handleInput('sire_id', e.target.value)} className={`w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-mono focus:outline-none focus:border-emerald-500 ${formData.lineage_unknown ? 'opacity-50' : ''}`} disabled={formData.lineage_unknown} /></div>
-                      <div><label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Dam UUID</label><input type="text" placeholder="UUID or empty" value={formData.dam_id || ''} onChange={e => handleInput('dam_id', e.target.value)} className={`w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-mono focus:outline-none focus:border-emerald-500 ${formData.lineage_unknown ? 'opacity-50' : ''}`} disabled={formData.lineage_unknown} /></div>
+                      <div className="col-span-full"><h3 className="text-xs font-black text-slate-800 uppercase tracking-widest flex items-center justify-between">Genetics <div className="mt-2"><FormField form={form} name="lineage_unknown" label="Lineage Unknown" type="checkbox" /></div></h3></div>
+                      <form.Field name="lineage_unknown">{({ state }) => (
+                        <>
+                          <FormField form={form} name="sire_id" label="Sire UUID" placeholder="UUID or empty" className={`font-mono text-xs ${state.value ? 'opacity-50' : ''}`} disabled={state.value} />
+                          <FormField form={form} name="dam_id" label="Dam UUID" placeholder="UUID or empty" className={`font-mono text-xs ${state.value ? 'opacity-50' : ''}`} disabled={state.value} />
+                        </>
+                      )}</form.Field>
                   </div>
               </div>
 
               <div className={activeSection === 'admin' ? 'space-y-6' : 'hidden'}>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 bg-amber-50 p-6 rounded-2xl border border-amber-200">
-                      <div className="flex items-center gap-3"><input type="checkbox" checked={formData.is_boarding} onChange={e => handleInput('is_boarding', e.target.checked)} className="w-5 h-5 rounded border-amber-400 text-amber-600 focus:ring-amber-500" /><label className="text-xs font-bold text-amber-900 uppercase tracking-widest">Animal is Boarding (External Owner)</label></div>
-                      <div className="flex items-center gap-3"><input type="checkbox" checked={formData.is_quarantine} onChange={e => handleInput('is_quarantine', e.target.checked)} className="w-5 h-5 rounded border-purple-400 text-purple-600 focus:ring-purple-500" /><label className="text-xs font-bold text-purple-900 uppercase tracking-widest">Active Quarantine Protocol</label></div>
+                      <FormField form={form} name="is_boarding" label="Animal is Boarding (External Owner)" type="checkbox" className="text-amber-600" />
+                      <FormField form={form} name="is_quarantine" label="Active Quarantine Protocol" type="checkbox" className="text-purple-600" />
                   </div>
-                  <div className="w-1/3"><label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Dashboard Display Order (Sort Priority)</label><input type="number" value={formData.display_order || ''} onChange={e => handleInput('display_order', e.target.value)} className="w-full px-3 py-2 border border-slate-200 rounded-lg font-mono focus:outline-none focus:border-emerald-500" /></div>
+                  <div className="w-1/3"><FormField form={form} name="display_order" label="Dashboard Display Order (Sort Priority)" type="number" className="font-mono" /></div>
               </div>
 
             </div>
           )}
 
           <div className="p-6 border-t border-slate-100 bg-white flex justify-end gap-3 shrink-0">
-            <button id="btn_modal_cancel" onClick={onClose} className="px-6 py-3 bg-white border border-slate-200 hover:bg-slate-100 rounded-xl font-bold uppercase text-xs tracking-widest transition-colors text-slate-600">Cancel</button>
-            <button id="btn_modal_save" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending || !formData.name} className="px-8 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black uppercase text-xs tracking-widest transition-colors flex items-center gap-2 disabled:opacity-50">
-              {saveMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} Save Profile
-            </button>
+            <button onClick={onClose} className="px-6 py-3 bg-white border border-slate-200 hover:bg-slate-100 rounded-xl font-bold uppercase text-xs tracking-widest transition-colors text-slate-600">Cancel</button>
+            <form.Subscribe selector={(state) => [state.canSubmit, state.isSubmitting]}>
+              {([canSubmit, isSubmitting]) => (
+                <button onClick={form.handleSubmit} disabled={!canSubmit || isSubmitting} className="px-8 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black uppercase text-xs tracking-widest transition-colors flex items-center gap-2 disabled:opacity-50">
+                  {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} Save Profile
+                </button>
+              )}
+            </form.Subscribe>
           </div>
         </div>
       </div>
