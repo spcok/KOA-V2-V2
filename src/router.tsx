@@ -10,6 +10,7 @@ import { Route as adminRoute } from './routes/admin';
 import { Route as dailyRoundsRoute } from './routes/daily-rounds';
 import { Route as feedingSchedulesRoute } from './routes/feeding-schedules';
 import { Route as animalProfileRoute } from './routes/animals.$animalId';
+import { Route as tasksRoute } from './routes/tasks';
 
 const routeTree = rootRoute.addChildren([
   loginRoute, 
@@ -21,6 +22,7 @@ const routeTree = rootRoute.addChildren([
   adminRoute,
   dailyRoundsRoute,
   feedingSchedulesRoute,
+  tasksRoute,
   animalProfileRoute // Added route
 ]);
 

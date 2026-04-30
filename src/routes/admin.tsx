@@ -1,6 +1,7 @@
 import { createRoute } from '@tanstack/react-router';
 import { ShieldAlert, Database, RefreshCw, Download, CloudLightning, Loader2 } from 'lucide-react';
 import { DatabaseHarness } from '../features/admin/components/DatabaseHarness';
+import { TaskSeeder } from '../features/admin/components/TaskSeeder';
 import { Route as rootRoute } from './__root';
 import { useSyncStore } from '../store/syncStore';
 
@@ -71,6 +72,8 @@ function AdminView() {
                     >
                        {isSyncing ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />} Force Full Download
                     </button>
+                    
+                    <TaskSeeder />
                 </div>
             </div>
          </div>
