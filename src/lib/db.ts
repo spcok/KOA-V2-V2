@@ -30,7 +30,6 @@ export async function initDb() {
       }
     };
 
-    // V1 to V5: Strict Alignments (No 'status' phantom column in animals)
     await runMigration('V1', [
       `CREATE TABLE IF NOT EXISTS users (id uuid PRIMARY KEY, email text UNIQUE NOT NULL, name text, initials text NOT NULL, role text DEFAULT 'KEEPER', job_position text DEFAULT 'KEEPER', signature_data text, pin text DEFAULT '1111', is_deleted boolean DEFAULT false, deleted_at timestamp with time zone, created_at timestamp with time zone DEFAULT now(), updated_at timestamp with time zone DEFAULT now())`,
       `CREATE TABLE IF NOT EXISTS animals (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), name text NOT NULL DEFAULT 'unknown', species text NOT NULL DEFAULT 'unknown', location text NOT NULL DEFAULT 'unknown', is_deleted boolean NOT NULL DEFAULT false, created_by uuid, modified_by uuid, created_at timestamp with time zone NOT NULL DEFAULT now(), updated_at timestamp with time zone NOT NULL DEFAULT now())`,
@@ -92,7 +91,6 @@ export async function initDb() {
     await runMigration('V4', [`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_deleted boolean DEFAULT false`]);
     await runMigration('V5', [`ALTER TABLE animals ADD COLUMN IF NOT EXISTS sign_content text`]);
 
-    // V6: Tasks Module
     await runMigration('V6', [
         `CREATE TABLE IF NOT EXISTS tasks (
           id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -114,7 +112,6 @@ export async function initDb() {
       )`
     ]);
 
-    // V7: Maintenance Module
     await runMigration('V7', [
         `CREATE TABLE IF NOT EXISTS maintenance_tickets (
           id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -132,6 +129,59 @@ export async function initDb() {
           modified_by uuid DEFAULT '00000000-0000-0000-0000-000000000000',
           created_at timestamp with time zone NOT NULL DEFAULT now(),
           updated_at timestamp with time zone NOT NULL DEFAULT now()
+      )`
+    ]);
+
+    // V8: Incidents Module
+    await runMigration('V8', [
+      `CREATE TABLE IF NOT EXISTS incidents (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        incident_date timestamp with time zone NOT NULL DEFAULT now(),
+        person_involved_name text NOT NULL DEFAULT 'NONE',
+        person_type text NOT NULL DEFAULT 'STAFF',
+        location text NOT NULL DEFAULT 'NONE',
+        incident_description text DEFAULT 'NONE',
+        injury_details text DEFAULT 'NONE',
+        treatment_provided text DEFAULT 'NONE',
+        outcome text NOT NULL DEFAULT 'RETURNED_TO_NORMAL',
+        is_riddor_reportable boolean NOT NULL DEFAULT false,
+        witness_details text DEFAULT 'NONE',
+        animal_involved boolean NOT NULL DEFAULT false,
+        linked_animal_id uuid DEFAULT '00000000-0000-0000-0000-000000000000',
+        assigned_to uuid DEFAULT '00000000-0000-0000-0000-000000000000',
+        reported_by uuid DEFAULT '00000000-0000-0000-0000-000000000000',
+        is_deleted boolean NOT NULL DEFAULT false,
+        created_by uuid DEFAULT '00000000-0000-0000-0000-000000000000',
+        modified_by uuid DEFAULT '00000000-0000-0000-0000-000000000000',
+        created_at timestamp with time zone NOT NULL DEFAULT now(),
+        updated_at timestamp with time zone NOT NULL DEFAULT now()
+      )`
+    ]);
+
+    // V9: Safety Incidents Module
+    await runMigration('V9', [
+      `CREATE TABLE IF NOT EXISTS safety_incidents (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        incident_date timestamp with time zone NOT NULL DEFAULT now(),
+        title text NOT NULL DEFAULT 'NONE',
+        incident_type text NOT NULL DEFAULT 'OTHER',
+        severity_level text NOT NULL DEFAULT 'LOW',
+        location text NOT NULL DEFAULT 'NONE',
+        description text DEFAULT 'NONE',
+        immediate_action_taken text DEFAULT 'NONE',
+        animal_involved boolean NOT NULL DEFAULT false,
+        linked_animal_id uuid DEFAULT '00000000-0000-0000-0000-000000000000',
+        first_aid_required boolean NOT NULL DEFAULT false,
+        root_cause text DEFAULT 'NONE',
+        preventative_action text DEFAULT 'NONE',
+        status text NOT NULL DEFAULT 'OPEN',
+        reported_by uuid DEFAULT '00000000-0000-0000-0000-000000000000',
+        assigned_to uuid DEFAULT '00000000-0000-0000-0000-000000000000',
+        is_deleted boolean NOT NULL DEFAULT false,
+        created_by uuid DEFAULT '00000000-0000-0000-0000-000000000000',
+        modified_by uuid DEFAULT '00000000-0000-0000-0000-000000000000',
+        created_at timestamp with time zone NOT NULL DEFAULT now(),
+        updated_at timestamp with time zone NOT NULL DEFAULT now()
       )`
     ]);
 

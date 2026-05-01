@@ -91,6 +91,15 @@ function RootComponent() {
             </div>
           </div>
 
+          {/* New Safety & Compliance Block */}
+          <div className="pt-4">
+            {isSidebarOpen && <div className="px-6 pb-2 text-[10px] font-bold tracking-wider text-slate-500 uppercase transition-opacity duration-300">Safety & Compliance</div>}
+            <div className="px-3 space-y-1">
+              <ActiveLink to="/incidents" label="First Aid" icon={Icons.safety} />
+              <ActiveLink to="/safety-incidents" label="Safety Incidents" icon={Icons.safety} />
+            </div>
+          </div>
+
           <div>
             {isSidebarOpen && <div className="px-6 pb-2 text-[10px] font-bold tracking-wider text-slate-500 uppercase transition-opacity duration-300">Animals</div>}
             <div className="px-3 space-y-1">

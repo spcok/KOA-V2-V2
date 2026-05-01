@@ -44,7 +44,9 @@ export const useSyncStore = create<SyncState>()(
             { table: 'feeding_schedules', filter: baseWhere },
             { table: 'daily_rounds', filter: ` WHERE completed_by IS NOT NULL${andWhere}` },
             { table: 'tasks', filter: baseWhere },
-            { table: 'maintenance_tickets', filter: baseWhere }
+            { table: 'maintenance_tickets', filter: baseWhere },
+            { table: 'incidents', filter: baseWhere },
+            { table: 'safety_incidents', filter: baseWhere }
           ];
 
           for (const def of pushDefinitions) {
@@ -83,7 +85,9 @@ export const useSyncStore = create<SyncState>()(
             { name: 'feeding_schedules', cols: ['id', 'animal_id', 'scheduled_date', 'food_type', 'quantity', 'calci_dust', 'additional_notes', 'is_completed', 'completed_at', 'completed_by', 'is_deleted', 'created_by', 'modified_by', 'created_at', 'updated_at'] },
             { name: 'daily_rounds', cols: ['id', 'animal_id', 'date', 'shift', 'section', 'is_alive', 'water_checked', 'locks_secured', 'animal_issue_note', 'general_section_note', 'completed_by', 'completed_at', 'is_deleted', 'created_by', 'modified_by', 'created_at', 'updated_at'] },
             { name: 'tasks', cols: ['id', 'title', 'description', 'assigned_to', 'due_date', 'task_type', 'status', 'location', 'priority', 'completed_at', 'completed_by', 'is_deleted', 'created_by', 'modified_by', 'created_at', 'updated_at'] },
-            { name: 'maintenance_tickets', cols: ['id', 'title', 'description', 'category', 'status', 'priority', 'location', 'equipment_tag', 'assigned_to', 'reported_by', 'is_deleted', 'created_by', 'modified_by', 'created_at', 'updated_at'] }
+            { name: 'maintenance_tickets', cols: ['id', 'title', 'description', 'category', 'status', 'priority', 'location', 'equipment_tag', 'assigned_to', 'reported_by', 'is_deleted', 'created_by', 'modified_by', 'created_at', 'updated_at'] },
+            { name: 'incidents', cols: ['id', 'incident_date', 'person_involved_name', 'person_type', 'location', 'incident_description', 'injury_details', 'treatment_provided', 'outcome', 'is_riddor_reportable', 'witness_details', 'animal_involved', 'linked_animal_id', 'assigned_to', 'reported_by', 'is_deleted', 'created_by', 'modified_by', 'created_at', 'updated_at'] },
+            { name: 'safety_incidents', cols: ['id', 'incident_date', 'title', 'incident_type', 'severity_level', 'location', 'description', 'immediate_action_taken', 'animal_involved', 'linked_animal_id', 'first_aid_required', 'root_cause', 'preventative_action', 'status', 'reported_by', 'assigned_to', 'is_deleted', 'created_by', 'modified_by', 'created_at', 'updated_at'] }
           ];
 
           for (const table of tablesToPull) {
