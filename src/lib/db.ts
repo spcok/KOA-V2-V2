@@ -185,6 +185,45 @@ export async function initDb() {
       )`
     ]);
 
+    // V10: Fire Drills
+    await runMigration('V10', [
+        `CREATE TABLE IF NOT EXISTS fire_drill_logs (
+          id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+          drill_date timestamp with time zone NOT NULL DEFAULT now(),
+          drill_type text NOT NULL DEFAULT 'PLANNED',
+          areas_involved text NOT NULL DEFAULT 'WHOLE_SITE',
+          evacuation_duration text NOT NULL DEFAULT '00:00',
+          roll_call_completed boolean NOT NULL DEFAULT false,
+          issues_observed text DEFAULT 'NONE',
+          corrective_actions text DEFAULT 'NONE',
+          status text NOT NULL DEFAULT 'PASS',
+          conducted_by uuid DEFAULT '00000000-0000-0000-0000-000000000000',
+          is_deleted boolean NOT NULL DEFAULT false,
+          created_by uuid DEFAULT '00000000-0000-0000-0000-000000000000',
+          modified_by uuid DEFAULT '00000000-0000-0000-0000-000000000000',
+          created_at timestamp with time zone NOT NULL DEFAULT now(),
+          updated_at timestamp with time zone NOT NULL DEFAULT now()
+        )`
+    ]);
+
+    // V11: Timesheets & Clock-in System
+    await runMigration('V11', [
+        `CREATE TABLE IF NOT EXISTS timesheets (
+          id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+          user_id uuid NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000',
+          shift_date date NOT NULL DEFAULT CURRENT_DATE,
+          clock_in_time timestamp with time zone NOT NULL DEFAULT now(),
+          clock_out_time timestamp with time zone NOT NULL DEFAULT '1900-01-01 00:00:00+00',
+          status text NOT NULL DEFAULT 'CLOCKED_IN',
+          notes text DEFAULT 'NONE',
+          is_deleted boolean NOT NULL DEFAULT false,
+          created_by uuid DEFAULT '00000000-0000-0000-0000-000000000000',
+          modified_by uuid DEFAULT '00000000-0000-0000-0000-000000000000',
+          created_at timestamp with time zone NOT NULL DEFAULT now(),
+          updated_at timestamp with time zone NOT NULL DEFAULT now()
+        )`
+    ]);
+
     const { rows } = await db.query('SELECT version FROM schema_migrations ORDER BY version DESC LIMIT 1');
     console.log(`[DB Core] Boot sequence complete. Active Schema: ${rows[0]?.version || 'Unknown'}`);
     hasInitialized = true;

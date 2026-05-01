@@ -46,7 +46,9 @@ export const useSyncStore = create<SyncState>()(
             { table: 'tasks', filter: baseWhere },
             { table: 'maintenance_tickets', filter: baseWhere },
             { table: 'incidents', filter: baseWhere },
-            { table: 'safety_incidents', filter: baseWhere }
+            { table: 'safety_incidents', filter: baseWhere },
+            { table: 'fire_drill_logs', filter: baseWhere },
+            { table: 'timesheets', filter: baseWhere }
           ];
 
           for (const def of pushDefinitions) {
@@ -87,7 +89,9 @@ export const useSyncStore = create<SyncState>()(
             { name: 'tasks', cols: ['id', 'title', 'description', 'assigned_to', 'due_date', 'task_type', 'status', 'location', 'priority', 'completed_at', 'completed_by', 'is_deleted', 'created_by', 'modified_by', 'created_at', 'updated_at'] },
             { name: 'maintenance_tickets', cols: ['id', 'title', 'description', 'category', 'status', 'priority', 'location', 'equipment_tag', 'assigned_to', 'reported_by', 'is_deleted', 'created_by', 'modified_by', 'created_at', 'updated_at'] },
             { name: 'incidents', cols: ['id', 'incident_date', 'person_involved_name', 'person_type', 'location', 'incident_description', 'injury_details', 'treatment_provided', 'outcome', 'is_riddor_reportable', 'witness_details', 'animal_involved', 'linked_animal_id', 'assigned_to', 'reported_by', 'is_deleted', 'created_by', 'modified_by', 'created_at', 'updated_at'] },
-            { name: 'safety_incidents', cols: ['id', 'incident_date', 'title', 'incident_type', 'severity_level', 'location', 'description', 'immediate_action_taken', 'animal_involved', 'linked_animal_id', 'first_aid_required', 'root_cause', 'preventative_action', 'status', 'reported_by', 'assigned_to', 'is_deleted', 'created_by', 'modified_by', 'created_at', 'updated_at'] }
+            { name: 'safety_incidents', cols: ['id', 'incident_date', 'title', 'incident_type', 'severity_level', 'location', 'description', 'immediate_action_taken', 'animal_involved', 'linked_animal_id', 'first_aid_required', 'root_cause', 'preventative_action', 'status', 'reported_by', 'assigned_to', 'is_deleted', 'created_by', 'modified_by', 'created_at', 'updated_at'] },
+            { name: 'fire_drill_logs', cols: ['id', 'drill_date', 'drill_type', 'areas_involved', 'evacuation_duration', 'roll_call_completed', 'issues_observed', 'corrective_actions', 'status', 'conducted_by', 'is_deleted', 'created_by', 'modified_by', 'created_at', 'updated_at'] },
+            { name: 'timesheets', cols: ['id', 'user_id', 'shift_date', 'clock_in_time', 'clock_out_time', 'status', 'notes', 'is_deleted', 'created_by', 'modified_by', 'created_at', 'updated_at'] }
           ];
 
           for (const table of tablesToPull) {

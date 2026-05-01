@@ -14,6 +14,8 @@ import { Route as tasksRoute } from './routes/tasks';
 import { Route as maintenanceRoute } from './routes/maintenance';
 import { Route as incidentsRoute } from './routes/incidents';
 import { Route as safetyIncidentsRoute } from './routes/safety-incidents';
+import { Route as fireDrillsRoute } from './routes/fire-drills';
+import { Route as timesheetsRoute } from './routes/timesheets';
 
 const routeTree = rootRoute.addChildren([
   loginRoute, 
@@ -29,6 +31,8 @@ const routeTree = rootRoute.addChildren([
   maintenanceRoute,
   incidentsRoute,
   safetyIncidentsRoute,
+  fireDrillsRoute,
+  timesheetsRoute,
   animalProfileRoute // Added route
 ]);
 

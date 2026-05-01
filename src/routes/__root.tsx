@@ -95,8 +95,17 @@ function RootComponent() {
           <div className="pt-4">
             {isSidebarOpen && <div className="px-6 pb-2 text-[10px] font-bold tracking-wider text-slate-500 uppercase transition-opacity duration-300">Safety & Compliance</div>}
             <div className="px-3 space-y-1">
-              <ActiveLink to="/incidents" label="First Aid" icon={Icons.safety} />
-              <ActiveLink to="/safety-incidents" label="Safety Incidents" icon={Icons.safety} />
+              <ActiveLink to="/maintenance" label="Maintenance" icon={Icons.settings} /> 
+              <ActiveLink to="/incidents" label="First Aid" icon={Icons.settings} /> 
+              <ActiveLink to="/safety-incidents" label="Safety Incidents" icon={Icons.settings} />
+              <ActiveLink to="/fire-drills" label="Fire Drills" icon={Icons.settings} />
+            </div>
+          </div>
+          
+          <div className="pt-4">
+            {isSidebarOpen && <div className="px-6 pb-2 text-[10px] font-bold tracking-wider text-slate-500 uppercase transition-opacity duration-300">Staff Management</div>}
+            <div className="px-3 space-y-1">
+              <ActiveLink to="/timesheets" label="Timesheets" icon={Icons.settings} />
             </div>
           </div>
 
@@ -115,13 +124,6 @@ function RootComponent() {
             <div className="px-3 space-y-1">
               <InactiveItem label="Movements" icon={Icons.logistics} />
               <InactiveItem label="Flight Records" icon={Icons.logistics} />
-            </div>
-          </div>
-
-          <div>
-            {isSidebarOpen && <div className="px-6 pb-2 text-[10px] font-bold tracking-wider text-slate-500 uppercase transition-opacity duration-300">Safety</div>}
-            <div className="px-3 space-y-1">
-              <ActiveLink to="/maintenance" label="Maintenance" icon={Icons.safety} />
             </div>
           </div>
         </nav>
@@ -144,9 +146,7 @@ function RootComponent() {
             </button>
           </div>
           <div className="flex items-center gap-4">
-            <button className="flex items-center gap-2 px-4 py-1.5 border border-emerald-500 text-emerald-600 rounded-full text-sm font-bold tracking-wider hover:bg-emerald-50 transition-colors">
-              CLOCK IN
-            </button>
+            <ClockInOutButton />
             <div className="h-6 w-px bg-slate-200"></div>
             <div className="flex items-center gap-3">
               <span className="text-sm font-semibold text-slate-700 hidden sm:block">{session?.user?.email || 'Active User'}</span>
