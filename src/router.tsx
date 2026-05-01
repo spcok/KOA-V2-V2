@@ -16,6 +16,11 @@ import { Route as incidentsRoute } from './routes/incidents';
 import { Route as safetyIncidentsRoute } from './routes/safety-incidents';
 import { Route as fireDrillsRoute } from './routes/fire-drills';
 import { Route as timesheetsRoute } from './routes/timesheets';
+import { Route as medicalDashboardRoute } from './routes/medical-dashboard';
+import { Route as isolationsRoute } from './routes/isolations';
+import { Route as clinicalRecordsRoute } from './routes/clinical-records';
+import { Route as medicalScheduleRoute } from './routes/medical-schedule';
+import { Route as medicationLogsRoute } from './routes/medication-logs';
 
 const routeTree = rootRoute.addChildren([
   loginRoute, 
@@ -33,6 +38,11 @@ const routeTree = rootRoute.addChildren([
   safetyIncidentsRoute,
   fireDrillsRoute,
   timesheetsRoute,
+  medicalDashboardRoute,
+  isolationsRoute,
+  clinicalRecordsRoute,
+  medicalScheduleRoute,
+  medicationLogsRoute,
   animalProfileRoute // Added route
 ]);
 

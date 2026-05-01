@@ -48,7 +48,12 @@ export const useSyncStore = create<SyncState>()(
             { table: 'incidents', filter: baseWhere },
             { table: 'safety_incidents', filter: baseWhere },
             { table: 'fire_drill_logs', filter: baseWhere },
-            { table: 'timesheets', filter: baseWhere }
+            { table: 'timesheets', filter: baseWhere },
+            { table: 'clinical_records', filter: baseWhere },
+            { table: 'clinical_attachments', filter: baseWhere },
+            { table: 'clinical_schedule', filter: baseWhere },
+            { table: 'medication_logs', filter: baseWhere },
+            { table: 'isolation_logs', filter: baseWhere }
           ];
 
           for (const def of pushDefinitions) {
@@ -91,7 +96,12 @@ export const useSyncStore = create<SyncState>()(
             { name: 'incidents', cols: ['id', 'incident_date', 'person_involved_name', 'person_type', 'location', 'incident_description', 'injury_details', 'treatment_provided', 'outcome', 'is_riddor_reportable', 'witness_details', 'animal_involved', 'linked_animal_id', 'assigned_to', 'reported_by', 'is_deleted', 'created_by', 'modified_by', 'created_at', 'updated_at'] },
             { name: 'safety_incidents', cols: ['id', 'incident_date', 'title', 'incident_type', 'severity_level', 'location', 'description', 'immediate_action_taken', 'animal_involved', 'linked_animal_id', 'first_aid_required', 'root_cause', 'preventative_action', 'status', 'reported_by', 'assigned_to', 'is_deleted', 'created_by', 'modified_by', 'created_at', 'updated_at'] },
             { name: 'fire_drill_logs', cols: ['id', 'drill_date', 'drill_type', 'areas_involved', 'evacuation_duration', 'roll_call_completed', 'issues_observed', 'corrective_actions', 'status', 'conducted_by', 'is_deleted', 'created_by', 'modified_by', 'created_at', 'updated_at'] },
-            { name: 'timesheets', cols: ['id', 'user_id', 'shift_date', 'clock_in_time', 'clock_out_time', 'status', 'notes', 'is_deleted', 'created_by', 'modified_by', 'created_at', 'updated_at'] }
+            { name: 'timesheets', cols: ['id', 'user_id', 'shift_date', 'clock_in_time', 'clock_out_time', 'status', 'notes', 'is_deleted', 'created_by', 'modified_by', 'created_at', 'updated_at'] },
+            { name: 'clinical_records', cols: ['id', 'animal_id', 'record_type', 'record_date', 'soap_subjective', 'soap_objective', 'soap_assessment', 'soap_plan', 'weight_grams', 'conductor_role', 'conducted_by', 'external_vet_name', 'external_vet_clinic', 'is_deleted', 'created_by', 'modified_by', 'created_at', 'updated_at'] },
+            { name: 'clinical_attachments', cols: ['id', 'record_id', 'file_name', 'file_type', 'file_url', 'is_deleted', 'created_by', 'created_at'] },
+            { name: 'clinical_schedule', cols: ['id', 'animal_id', 'schedule_type', 'title', 'start_date', 'end_date', 'frequency', 'status', 'assigned_to', 'is_deleted', 'created_by', 'modified_by', 'created_at', 'updated_at'] },
+            { name: 'medication_logs', cols: ['id', 'schedule_id', 'animal_id', 'administered_at', 'status', 'notes', 'administered_by', 'is_deleted', 'created_by', 'modified_by', 'created_at', 'updated_at'] },
+            { name: 'isolation_logs', cols: ['id', 'animal_id', 'isolation_type', 'start_date', 'end_date', 'location', 'reason_notes', 'status', 'authorized_by', 'is_deleted', 'created_by', 'modified_by', 'created_at', 'updated_at'] }
           ];
 
           for (const table of tablesToPull) {

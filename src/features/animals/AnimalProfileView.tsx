@@ -7,6 +7,7 @@ import { useAuthStore } from '../../store/authStore';
 import { Loader2, ArrowLeft, Archive, RefreshCw, FileText, Stethoscope, ClipboardList, ShieldAlert, Thermometer, Scale, AlertTriangle, GitMerge, Edit2 } from 'lucide-react';
 import { IUCNBadge } from './components/IUCNBadge';
 import { HusbandryLogsTab } from './components/HusbandryLogsTab';
+import { MedicalTab } from './components/MedicalTab';
 import { SignGenerator } from './components/SignGenerator';
 import { AddAnimalModal } from './components/AddAnimalModal';
 
@@ -186,7 +187,7 @@ export function AnimalProfileView({ animalId, onBack }: { animalId: string, onBa
               </div>
             </div>
         )}
-        {activeTab === 'medical' && <div className="bg-white p-12 rounded-2xl border border-slate-200 shadow-sm text-center text-slate-500 font-bold uppercase tracking-widest text-xs">Medical Module Mounting Point</div>}
+        {activeTab === 'medical' && <MedicalTab animalId={animalId} />}
         {activeTab === 'husbandry' && <HusbandryLogsTab animalId={animal.id} />}
       </div>
 

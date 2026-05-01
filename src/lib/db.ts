@@ -224,6 +224,86 @@ export async function initDb() {
         )`
     ]);
 
+    // V12: Medical Suite
+    await runMigration('V12', [
+        `CREATE TABLE IF NOT EXISTS clinical_records (
+            id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+            animal_id uuid NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000',
+            record_type text NOT NULL DEFAULT 'KEEPER_EXAM',
+            record_date timestamp with time zone NOT NULL DEFAULT now(),
+            soap_subjective text NOT NULL DEFAULT 'NONE',
+            soap_objective text NOT NULL DEFAULT 'NONE',
+            soap_assessment text NOT NULL DEFAULT 'NONE',
+            soap_plan text NOT NULL DEFAULT 'NONE',
+            weight_grams numeric NOT NULL DEFAULT -1,
+            conductor_role text NOT NULL DEFAULT 'KEEPER',
+            conducted_by uuid NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000',
+            external_vet_name text NOT NULL DEFAULT 'N/A',
+            external_vet_clinic text NOT NULL DEFAULT 'N/A',
+            is_deleted boolean NOT NULL DEFAULT false,
+            created_by uuid NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000',
+            modified_by uuid NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000',
+            created_at timestamp with time zone NOT NULL DEFAULT now(),
+            updated_at timestamp with time zone NOT NULL DEFAULT now()
+        )`,
+        `CREATE TABLE IF NOT EXISTS clinical_attachments (
+            id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+            record_id uuid NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000',
+            file_name text NOT NULL DEFAULT 'UNKNOWN',
+            file_type text NOT NULL DEFAULT 'UNKNOWN',
+            file_url text NOT NULL DEFAULT 'NONE', 
+            is_deleted boolean NOT NULL DEFAULT false,
+            created_by uuid NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000',
+            created_at timestamp with time zone NOT NULL DEFAULT now()
+        )`,
+        `CREATE TABLE IF NOT EXISTS clinical_schedule (
+            id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+            animal_id uuid NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000',
+            schedule_type text NOT NULL DEFAULT 'VET_CHECK',
+            title text NOT NULL DEFAULT 'NONE',
+            start_date date NOT NULL DEFAULT CURRENT_DATE,
+            end_date date NOT NULL DEFAULT '1900-01-01',
+            frequency text NOT NULL DEFAULT 'ONCE',
+            status text NOT NULL DEFAULT 'ACTIVE',
+            assigned_to uuid NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000',
+            is_deleted boolean NOT NULL DEFAULT false,
+            created_by uuid NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000',
+            modified_by uuid NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000',
+            created_at timestamp with time zone NOT NULL DEFAULT now(),
+            updated_at timestamp with time zone NOT NULL DEFAULT now()
+        )`,
+        `CREATE TABLE IF NOT EXISTS medication_logs (
+            id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+            schedule_id uuid NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000',
+            animal_id uuid NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000',
+            administered_at timestamp with time zone NOT NULL DEFAULT now(),
+            status text NOT NULL DEFAULT 'GIVEN',
+            notes text NOT NULL DEFAULT 'NONE',
+            administered_by uuid NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000',
+            is_deleted boolean NOT NULL DEFAULT false,
+            created_by uuid NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000',
+            modified_by uuid NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000',
+            created_at timestamp with time zone NOT NULL DEFAULT now(),
+            updated_at timestamp with time zone NOT NULL DEFAULT now()
+        )`,
+        `CREATE TABLE IF NOT EXISTS isolation_logs (
+            id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+            animal_id uuid NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000',
+            isolation_type text NOT NULL DEFAULT 'MEDICAL_INJURY',
+            start_date date NOT NULL DEFAULT CURRENT_DATE,
+            end_date date NOT NULL DEFAULT '1900-01-01',
+            location text NOT NULL DEFAULT 'NONE',
+            reason_notes text NOT NULL DEFAULT 'NONE',
+            status text NOT NULL DEFAULT 'ACTIVE',
+            authorized_by uuid NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000',
+            is_deleted boolean NOT NULL DEFAULT false,
+            created_by uuid NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000',
+            modified_by uuid NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000',
+            created_at timestamp with time zone NOT NULL DEFAULT now(),
+            updated_at timestamp with time zone NOT NULL DEFAULT now()
+        )`
+    ]);
+
     const { rows } = await db.query('SELECT version FROM schema_migrations ORDER BY version DESC LIMIT 1');
     console.log(`[DB Core] Boot sequence complete. Active Schema: ${rows[0]?.version || 'Unknown'}`);
     hasInitialized = true;

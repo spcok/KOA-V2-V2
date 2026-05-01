@@ -4,6 +4,8 @@ import { Toaster } from 'react-hot-toast';
 import { initDb } from '../lib/db';
 import { useSyncStore } from '../store/syncStore';
 import { useAuthStore } from '../store/authStore';
+import { ClockInOutButton } from '../components/ClockInOutButton';
+import { Activity, FileText, Pill, ShieldAlert, CalendarClock, Wrench, HeartPulse, AlertTriangle, Flame } from 'lucide-react';
 
 interface MyRouterContext {
   auth: ReturnType<typeof useAuthStore>;
@@ -74,10 +76,12 @@ function RootComponent() {
         </div>
         
         <nav className="flex-1 py-4 overflow-y-auto overflow-x-hidden flex flex-col gap-6 scrollbar-hide">
-          <div>
-            {isSidebarOpen && <div className="px-6 pb-2 text-[10px] font-bold tracking-wider text-slate-500 uppercase transition-opacity duration-300">Overview</div>}
+          {/* Cleaned Animals / Collection Block */}
+          <div className="pt-4">
+            {isSidebarOpen && <div className="px-6 pb-2 text-[10px] font-bold tracking-wider text-slate-500 uppercase transition-opacity duration-300">Collection</div>}
             <div className="px-3 space-y-1">
               <ActiveLink to="/" label="Dashboard" icon={Icons.dashboard} />
+              <ActiveLink to="/animals" label="Animal Roster" icon={Icons.generic} />
             </div>
           </div>
 
@@ -91,14 +95,26 @@ function RootComponent() {
             </div>
           </div>
 
+          {/* Strict 5-Module Veterinary Block */}
+          <div className="pt-4">
+            {isSidebarOpen && <div className="px-6 pb-2 text-[10px] font-bold tracking-wider text-slate-500 uppercase transition-opacity duration-300">Veterinary & Health</div>}
+            <div className="px-3 space-y-1">
+              <ActiveLink to="/medical-dashboard" label="Medical Dashboard" icon={<Activity size={20} />} />
+              <ActiveLink to="/clinical-records" label="Clinical Records" icon={<FileText size={20} />} />
+              <ActiveLink to="/medication-logs" label="Medication Logs" icon={<Pill size={20} />} />
+              <ActiveLink to="/isolations" label="Biosecurity & Isolations" icon={<ShieldAlert size={20} />} />
+              <ActiveLink to="/medical-schedule" label="Medical Schedule" icon={<CalendarClock size={20} />} />
+            </div>
+          </div>
+
           {/* New Safety & Compliance Block */}
           <div className="pt-4">
             {isSidebarOpen && <div className="px-6 pb-2 text-[10px] font-bold tracking-wider text-slate-500 uppercase transition-opacity duration-300">Safety & Compliance</div>}
             <div className="px-3 space-y-1">
-              <ActiveLink to="/maintenance" label="Maintenance" icon={Icons.settings} /> 
-              <ActiveLink to="/incidents" label="First Aid" icon={Icons.settings} /> 
-              <ActiveLink to="/safety-incidents" label="Safety Incidents" icon={Icons.settings} />
-              <ActiveLink to="/fire-drills" label="Fire Drills" icon={Icons.settings} />
+              <ActiveLink to="/maintenance" label="Maintenance" icon={<Wrench size={20} />} /> 
+              <ActiveLink to="/incidents" label="First Aid" icon={<HeartPulse size={20} />} /> 
+              <ActiveLink to="/safety-incidents" label="Safety Incidents" icon={<AlertTriangle size={20} />} />
+              <ActiveLink to="/fire-drills" label="Fire Drills" icon={<Flame size={20} />} />
             </div>
           </div>
           
@@ -109,15 +125,7 @@ function RootComponent() {
             </div>
           </div>
 
-          <div>
-            {isSidebarOpen && <div className="px-6 pb-2 text-[10px] font-bold tracking-wider text-slate-500 uppercase transition-opacity duration-300">Animals</div>}
-            <div className="px-3 space-y-1">
-              <InactiveItem label="Animals" icon={Icons.generic} />
-              <InactiveItem label="Clinical Notes" icon={Icons.generic} />
-              <InactiveItem label="Medications" icon={Icons.generic} />
-              <InactiveItem label="Quarantine" icon={Icons.generic} />
-            </div>
-          </div>
+
 
           <div>
             {isSidebarOpen && <div className="px-6 pb-2 text-[10px] font-bold tracking-wider text-slate-500 uppercase transition-opacity duration-300">Logistics</div>}
