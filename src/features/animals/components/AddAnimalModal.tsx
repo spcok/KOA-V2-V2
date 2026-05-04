@@ -9,53 +9,53 @@ import { useAuthStore } from '../../../store/authStore';
 import { X, Save, Loader2, Image as ImageIcon, Map as MapIcon, Check, ZoomIn } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-// --- ZOD SCHEMA DEFINITION ---
 const ZERO_UUID = '00000000-0000-0000-0000-000000000000';
 
+// --- RESTORED ORIGINAL SCHEMA ---
 const animalSchema = z.object({
   entity_type: z.enum(['INDIVIDUAL', 'MOB']).default('INDIVIDUAL'),
-  parent_mob_id: z.string().transform(val => val?.trim() === '' ? ZERO_UUID : val),
+  parent_mob_id: z.string().transform(val => val.trim() === '' ? ZERO_UUID : val),
   census_count: z.preprocess(val => Number(val) || 1, z.number().min(1)),
-  name: z.string().min(1, "Name is required").transform(val => val?.trim() === '' ? 'unknown' : val),
-  species: z.string().transform(val => val?.trim() === '' ? 'unknown' : val),
-  latin_name: z.string().transform(val => val?.trim() === '' ? 'unknown' : val),
-  category: z.string().transform(val => val?.trim() === '' ? 'unknown' : val),
-  location: z.string().transform(val => val?.trim() === '' ? 'unknown' : val),
-  image_url: z.string().transform(val => val?.trim() === '' ? '-1' : val),
-  distribution_map_url: z.string().nullable().transform(val => val === 'NONE' || !val ? '-1' : val),
-  hazard_rating: z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']).default('LOW'),
+  name: z.string().min(1, "Name is required").transform(val => val.trim() === '' ? 'unknown' : val),
+  species: z.string().transform(val => val.trim() === '' ? 'unknown' : val),
+  latin_name: z.string().transform(val => val.trim() === '' ? 'unknown' : val),
+  category: z.string().transform(val => val.trim() === '' ? 'unknown' : val),
+  location: z.string().transform(val => val.trim() === '' ? 'unknown' : val),
+  image_url: z.string().transform(val => val.trim() === '' ? '-1' : val),
+  distribution_map_url: z.string().nullable().transform(val => val === '' ? null : val),
+  hazard_rating: z.enum(['LOW', 'MEDIUM', 'HIGH']).default('LOW'),
   is_venomous: z.boolean().default(false),
-  weight_unit: z.enum(['g', 'kg', 'lb', 'oz']).default('g'),
-  flying_weight_g: z.preprocess(val => val === '' ? -1 : Number(val), z.number().default(-1)),
-  winter_weight_g: z.preprocess(val => val === '' ? -1 : Number(val), z.number().default(-1)),
-  average_target_weight: z.preprocess(val => val === '' ? -1 : Number(val), z.number().default(-1)),
-  date_of_birth: z.string().transform(val => val?.trim() === '' ? '1900-01-01' : val),
+  weight_unit: z.enum(['g', 'kg', 'lb', 'oz']).default('g'), // Updated to include lb and oz
+  flying_weight_g: z.preprocess(val => val === '' || val === null ? -1 : Number(val), z.number()),
+  winter_weight_g: z.preprocess(val => val === '' || val === null ? -1 : Number(val), z.number()),
+  average_target_weight: z.preprocess(val => val === '' || val === null ? -1 : Number(val), z.number()),
+  date_of_birth: z.string().transform(val => val === '' ? '1900-01-01' : val),
   is_dob_unknown: z.boolean().default(false),
-  gender: z.enum(['Male', 'Female', 'Unknown']).default('Unknown'),
-  microchip_id: z.string().transform(val => val?.trim() === '' ? 'unknown' : val),
-  ring_number: z.string().transform(val => val?.trim() === '' ? 'unknown' : val),
+  gender: z.string().transform(val => val.trim() === '' ? 'unknown' : val),
+  microchip_id: z.string().transform(val => val.trim() === '' ? 'unknown' : val),
+  ring_number: z.string().transform(val => val.trim() === '' ? 'unknown' : val),
   has_no_id: z.boolean().default(false),
-  red_list_status: z.enum(['NE', 'DD', 'LC', 'NT', 'VU', 'EN', 'CR', 'EW', 'EX']).default('NE'),
-  description: z.string().transform(val => val?.trim() === '' ? ['none'] : [val]),
-  special_requirements: z.string().transform(val => val?.trim() === '' ? ['none'] : [val]),
-  critical_husbandry_notes: z.string().transform(val => val?.trim() === '' ? ['none'] : [val]),
+  red_list_status: z.string().default('NE'),
+  description: z.string().transform(val => val.trim() === '' ? ['none'] : val.split(/\n|\\n/).map(s => s.trim()).filter(Boolean)),
+  special_requirements: z.string().transform(val => val.trim() === '' ? ['none'] : val.split(/\n|\\n/).map(s => s.trim()).filter(Boolean)),
+  critical_husbandry_notes: z.string().transform(val => val.trim() === '' ? ['none'] : val.split(/\n|\\n/).map(s => s.trim()).filter(Boolean)),
   ambient_temp_only: z.boolean().default(false),
-  target_day_temp_c: z.preprocess(val => val === '' ? -1 : Number(val), z.number().default(-1)),
-  target_night_temp_c: z.preprocess(val => val === '' ? -1 : Number(val), z.number().default(-1)),
-  water_tipping_temp: z.preprocess(val => val === '' ? -1 : Number(val), z.number().default(-1)),
-  target_humidity_min_percent: z.preprocess(val => val === '' ? -1 : Number(val), z.number().default(-1)),
-  target_humidity_max_percent: z.preprocess(val => val === '' ? -1 : Number(val), z.number().default(-1)),
-  misting_frequency: z.string().transform(val => val?.trim() === '' ? 'NONE' : val),
-  acquisition_date: z.string().transform(val => val?.trim() === '' ? '1900-01-01' : val),
-  acquisition_type: z.string().transform(val => val?.trim() === '' ? 'unknown' : val),
-  origin: z.string().transform(val => val?.trim() === '' ? 'unknown' : val),
-  origin_location: z.string().transform(val => val?.trim() === '' ? 'unknown' : val),
+  target_day_temp_c: z.preprocess(val => val === '' || val === null ? -1 : Number(val), z.number()),
+  target_night_temp_c: z.preprocess(val => val === '' || val === null ? -1 : Number(val), z.number()),
+  water_tipping_temp: z.preprocess(val => val === '' || val === null ? -1 : Number(val), z.number()),
+  target_humidity_min_percent: z.preprocess(val => val === '' || val === null ? -1 : Number(val), z.number()),
+  target_humidity_max_percent: z.preprocess(val => val === '' || val === null ? -1 : Number(val), z.number()),
+  misting_frequency: z.string().nullable().transform(val => val === '' ? null : val),
+  acquisition_date: z.string().transform(val => val === '' ? '1900-01-01' : val),
+  acquisition_type: z.string().transform(val => val.trim() === '' ? 'unknown' : val),
+  origin: z.string().transform(val => val.trim() === '' ? 'unknown' : val),
+  origin_location: z.string().transform(val => val.trim() === '' ? 'unknown' : val),
   lineage_unknown: z.boolean().default(false),
-  sire_id: z.string().transform(val => val?.trim() === '' ? ZERO_UUID : val),
-  dam_id: z.string().transform(val => val?.trim() === '' ? ZERO_UUID : val),
+  sire_id: z.string().transform(val => val.trim() === '' ? ZERO_UUID : val),
+  dam_id: z.string().transform(val => val.trim() === '' ? ZERO_UUID : val),
   is_boarding: z.boolean().default(false),
   is_quarantine: z.boolean().default(false),
-  display_order: z.preprocess(val => Number(val) || 0, z.number().default(0)),
+  display_order: z.preprocess(val => Number(val) || 0, z.number())
 });
 
 const DEFAULT_VALUES = {
@@ -67,7 +67,6 @@ const DEFAULT_VALUES = {
   is_boarding: false, is_quarantine: false, display_order: 0
 };
 
-// --- INLINE VISUAL CROPPER COMPONENT ---
 function ImageCropper({ src, aspect, onCrop, onCancel }: { src: string, aspect: number, onCrop: (b64: string) => void, onCancel: () => void }) {
   const [zoom, setZoom] = useState(1);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
@@ -147,8 +146,6 @@ function ImageCropper({ src, aspect, onCrop, onCancel }: { src: string, aspect: 
   );
 }
 
-
-// --- REUSABLE FORM FIELD COMPONENTS ---
 function FormField({ form, name, label, type = "text", placeholder, className = "", required = false }: { form: any, name: string, label: string, type?: string, placeholder?: string, className?: string, required?: boolean }) {
   return (
     <form.Field name={name}>
@@ -185,7 +182,6 @@ function FormSelect({ form, name, label, options, required = false }: { form: an
     )
 }
 
-// --- MAIN COMPONENT ---
 export function AddAnimalModal({ isOpen, onClose, existingAnimalId }: { isOpen: boolean, onClose: () => void, existingAnimalId?: string }) {
   const [activeSection, setActiveSection] = useState<'core' | 'id' | 'env' | 'health' | 'admin'>('core');
   const [cropFileSrc, setCropFileSrc] = useState<string | null>(null);
@@ -194,11 +190,11 @@ export function AddAnimalModal({ isOpen, onClose, existingAnimalId }: { isOpen: 
 
   const currentUserId = useAuthStore(s => s.session?.user?.id);
 
-  // 1. THE DATA FETCH (Hydration Guard Pattern)
+  // --- THE HYDRATION GUARD ---
   const { data: initialData, isLoading: isHydrating } = useQuery({
     queryKey: ['animal_edit_hydrate', existingAnimalId],
     queryFn: async () => {
-        if (!existingAnimalId) return DEFAULT_VALUES; // New animal
+        if (!existingAnimalId) return DEFAULT_VALUES;
 
         const res = await db.query("SELECT * FROM animals WHERE id = $1", [existingAnimalId]);
         const r = res.rows[0];
@@ -206,12 +202,10 @@ export function AddAnimalModal({ isOpen, onClose, existingAnimalId }: { isOpen: 
 
         const loadData = { ...DEFAULT_VALUES };
         
-        // Map database row to our form schema object
         Object.keys(DEFAULT_VALUES).forEach(k => {
             if (r[k] !== undefined && r[k] !== null) loadData[k as keyof typeof DEFAULT_VALUES] = r[k];
         });
         
-        // Data Formatting for Inputs
         if (String(loadData.date_of_birth).startsWith('1900-01-01')) loadData.date_of_birth = '';
         else loadData.date_of_birth = new Date(loadData.date_of_birth).toISOString().split('T')[0];
         
@@ -243,12 +237,11 @@ export function AddAnimalModal({ isOpen, onClose, existingAnimalId }: { isOpen: 
 
         return loadData;
     },
-    enabled: isOpen // Only fetch when modal opens
+    enabled: isOpen
   });
 
-  // 2. THE FORM INITIALIZATION (Using fetched data)
   const form = useForm({
-    defaultValues: initialData || DEFAULT_VALUES, // Provide data instantly on boot
+    defaultValues: initialData || DEFAULT_VALUES,
     validatorAdapter: zodValidator(),
     onSubmit: async ({ value }) => {
       const payload: any = animalSchema.parse(value);
@@ -297,7 +290,6 @@ export function AddAnimalModal({ isOpen, onClose, existingAnimalId }: { isOpen: 
       setCropTarget(null);
   };
 
-  // 3. THE HYDRATION GUARD
   if (!isOpen) return null;
   if (isHydrating) return (
       <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex justify-center items-center z-[100]">
@@ -369,7 +361,7 @@ export function AddAnimalModal({ isOpen, onClose, existingAnimalId }: { isOpen: 
             <div className="p-8 space-y-6 flex-1 overflow-y-auto">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <FormField form={form} name="latin_name" label="Latin / Scientific Name" className="italic" />
-                    <FormSelect form={form} name="gender" label="Gender" options={[{value: 'Male', label: 'Male'}, {value: 'Female', label: 'Female'}, {value: 'Unknown', label: 'Unknown/Unsexed'}]} />
+                    <FormSelect form={form} name="gender" label="Gender" options={[{value: 'Male', label: 'Male'}, {value: 'Female', label: 'Female'}, {value: 'Unknown', label: 'Unknown/Unsexed'}, {value: 'unknown', label: 'Unknown/Unsexed'}]} />
                     <FormField form={form} name="microchip_id" label="Microchip / Transponder ID" className="font-mono" />
                     <FormField form={form} name="ring_number" label="Ring / Band Number" className="font-mono" />
                 </div>

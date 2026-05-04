@@ -11,6 +11,23 @@ interface MyRouterContext {
   auth: ReturnType<typeof useAuthStore>;
 }
 
+const NotFoundComponent = () => {
+  return (
+    <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 text-center">
+      <div className="bg-white p-10 rounded-3xl shadow-xl max-w-md w-full border border-slate-200">
+        <div className="w-20 h-20 bg-rose-100 text-rose-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-inner">
+          <AlertTriangle size={40} />
+        </div>
+        <h1 className="text-3xl font-black text-slate-800 mb-2 tracking-tight">404</h1>
+        <p className="text-slate-500 font-bold mb-8 text-sm">The module or page you are looking for does not exist or has been moved.</p>
+        <Link to="/" className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-black uppercase text-xs tracking-widest hover:bg-indigo-700 transition-colors shadow-md block w-full">
+          Return to Dashboard
+        </Link>
+      </div>
+    </div>
+  );
+};
+
 export const Route = createRootRouteWithContext<MyRouterContext>()({
   beforeLoad: ({ context, location }) => {
     if (!context.auth.session && location.pathname !== '/login') {
@@ -18,6 +35,7 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
     }
   },
   component: RootComponent,
+  notFoundComponent: NotFoundComponent,
 });
 
 function RootComponent() {
