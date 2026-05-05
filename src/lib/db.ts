@@ -304,6 +304,10 @@ export async function initDb() {
         )`
     ]);
 
+    await runMigration('V13', [
+      `ALTER TABLE users ALTER COLUMN initials SET DEFAULT '??'`
+    ]);
+
     const { rows } = await db.query('SELECT version FROM schema_migrations ORDER BY version DESC LIMIT 1');
     console.log(`[DB Core] Boot sequence complete. Active Schema: ${rows[0]?.version || 'Unknown'}`);
     hasInitialized = true;

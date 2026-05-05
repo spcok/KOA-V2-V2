@@ -81,7 +81,8 @@ export const useSyncStore = create<SyncState>()(
           if (usersData && usersData.length > 0) {
             await db.transaction(async (tx) => {
               for (const r of usersData) {
-                await tx.query(`INSERT INTO users (id, email, name, initials, role, is_deleted, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) ON CONFLICT (id) DO UPDATE SET email = EXCLUDED.email, name = EXCLUDED.name, initials = EXCLUDED.initials, role = EXCLUDED.role, is_deleted = EXCLUDED.is_deleted, updated_at = EXCLUDED.updated_at`, [r.id, r.email, r.name, r.initials, r.role, r.is_deleted, r.created_at, r.updated_at]);
+                const initials = r.initials || r.name?.split(' ').map((n: string) => n[0]).join('').toUpperCase().substring(0, 3) || '??';
+                await tx.query(`INSERT INTO users (id, email, name, initials, role, is_deleted, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) ON CONFLICT (id) DO UPDATE SET email = EXCLUDED.email, name = EXCLUDED.name, initials = EXCLUDED.initials, role = EXCLUDED.role, is_deleted = EXCLUDED.is_deleted, updated_at = EXCLUDED.updated_at`, [r.id, r.email, r.name, initials, r.role, r.is_deleted, r.created_at, r.updated_at]);
               }
             });
           }
